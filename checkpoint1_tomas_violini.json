@@ -1,0 +1,289 @@
+{
+  "name": "checkpoint1_tomas_violini",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "2330d86f-f730-4f1a-ae43-7752c39385f6",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -768,
+        16
+      ],
+      "webhookId": "chk1-tv-chat-trigger-8a1f2b3c"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "# ROL\nSos un Asistente de Calificacion de Leads para una consultora de automatizacion e IA que da servicios a PyMEs y concesionarias de la zona de La Plata, Argentina. Tu trabajo es recibir consultas entrantes de potenciales clientes, entender su necesidad y calificar el lead segun su potencial comercial.\n\n# AMBITO\nOperas unicamente sobre mensajes de contacto comercial entrantes. Extraes: nombre, empresa/rubro, necesidad detectada y nivel de urgencia. No haces soporte tecnico ni respondes consultas ajenas al proceso de ventas.\n\n# OBJETIVO\n1. Interpretar el mensaje desestructurado del usuario.\n2. Clasificar el lead como CALIENTE, TIBIO o FRIO segun intencion de compra y urgencia.\n3. Cuando identifiques un lead calificado con datos suficientes, registrarlo usando la herramienta disponible.\n4. Devolver un resumen claro de la calificacion al operador humano.\n\n# REGLAS Y RESTRICCIONES\n- NO inventes datos que el usuario no haya proporcionado. Si falta informacion critica, marca el campo como \"No especificado\".\n- NO prometas precios, plazos ni condiciones comerciales concretas.\n- NO ejecutes ninguna accion fuera de calificar y registrar leads.\n- Redacta siempre en espanol rioplatense neutro y profesional. Esta prohibido el uso de lenguaje inclusivo con \"e/x/@\" (usa formas estandar del espanol).\n- Se conciso: maximo un parrafo de resumen por lead.\n\n# ESCALAMIENTO\n- Si el mensaje es ambiguo o no parece un lead comercial, no uses ninguna herramienta y responde pidiendo aclaracion.\n- Si detectas un lead CALIENTE con urgencia alta, marcalo explicitamente en el resumen para revision humana prioritaria."
+        }
+      },
+      "id": "31515ce1-6cd9-42e9-ab1f-93422ca154cb",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -464,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "8f9c99ed-07f5-4584-88f6-45101caed3eb",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        256
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "lcoj2GXDoelxoXmi",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Usa esta herramienta para registrar un lead comercial calificado en la base de datos de la consultora. Debes activarla UNICAMENTE cuando ya hayas logrado extraer del mensaje del usuario, como minimo, el nombre o empresa del interesado y una necesidad comercial concreta (por ejemplo: \"quiero automatizar la carga de datos de mi concesionaria\" o \"necesito un chatbot para atender consultas\").\n\nActivala en estos casos de negocio:\n- El usuario expresa interes real en contratar un servicio de automatizacion o IA.\n- Hay datos suficientes para clasificar el lead como CALIENTE o TIBIO.\n- El usuario deja un dato de contacto o identifica su empresa.\n\nNO la actives cuando:\n- El mensaje sea un saludo, una consulta generica sin intencion de compra, o soporte de un cliente ya existente.\n- Falten tanto el identificador del contacto como la necesidad.\n\nPasa a la herramienta los campos: Nombre, Empresa, Rubro, Necesidad, Clasificacion (CALIENTE/TIBIO/FRIO) y Urgencia.",
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appMxRy6AJoqDNuYO",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldp4AOHimIS6eT2",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nombre": "={{ $fromAI('Nombre', 'Nombre del contacto', 'string') }}",
+            "Empresa": "={{ $fromAI('Empresa', 'Empresa del contacto', 'string') }}",
+            "Rubro": "={{ $fromAI('Rubro', 'Rubro o sector', 'string') }}",
+            "Necesidad": "={{ $fromAI('Necesidad', 'Necesidad comercial detectada', 'string') }}",
+            "Clasificacion": "={{ $fromAI('Clasificacion', 'CALIENTE, TIBIO o FRIO', 'string') }}",
+            "Urgencia": "={{ $fromAI('Urgencia', 'Nivel de urgencia', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Empresa",
+              "displayName": "Empresa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Rubro",
+              "displayName": "Rubro",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Necesidad",
+              "displayName": "Necesidad",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Clasificacion",
+              "displayName": "Clasificacion",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "CALIENTE",
+                  "value": "CALIENTE"
+                },
+                {
+                  "name": "TIBIO",
+                  "value": "TIBIO"
+                },
+                {
+                  "name": "FRIO",
+                  "value": "FRIO"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Urgencia",
+              "displayName": "Urgencia",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Alta",
+                  "value": "Alta"
+                },
+                {
+                  "name": "Media",
+                  "value": "Media"
+                },
+                {
+                  "name": "Baja",
+                  "value": "Baja"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "1d409dd9-6fc0-4e17-989e-4ea487118254",
+      "name": "Airtable - Registrar Lead",
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.1,
+      "position": [
+        -288,
+        256
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "EE6FRu7vqNpl8G0U",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "tomasvioliniutn10@gmail.com",
+        "subject": "=Nuevo lead calificado - {{ $now.format('dd/MM/yyyy HH:mm') }}",
+        "message": "=RESULTADO DE CALIFICACION DEL AGENTE:\n\n{{ $json.output }}\n\n---\nReporte automatico de observabilidad | Checkpoint 1 CoderHouse",
+        "options": {}
+      },
+      "id": "c67b99ed-eff8-4822-b9fd-b9dc7b02038b",
+      "name": "Gmail - Log Observabilidad",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -144,
+        16
+      ],
+      "webhookId": "ed8dd2b6-23d6-4a78-938f-87a109970ee7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "vbT2K4K8AXef3Jul",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Log Observabilidad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable - Registrar Lead": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7284c5d5-4328-4809-bc4e-74014296ecdf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6176454f87cf7a8894fb913c6e0908458ebc077996cdec55f49f2f2f2ca7579c"
+  },
+  "nodeGroups": [],
+  "id": "0pRpn0v9Z7rZiuIo",
+  "tags": []
+}
