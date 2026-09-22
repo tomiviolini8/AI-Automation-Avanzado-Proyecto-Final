@@ -1,0 +1,201 @@
+{
+  "name": "Manager - Orquestador M2",
+  "nodes": [
+    {
+      "parameters": { "options": {} },
+      "id": "mgr-chat",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [-620, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Sos un router de intenciones. Clasificá el mensaje en UNA de estas categorías EXACTAS y respondé SOLO con esa palabra, sin texto extra:\n- CALIFICAR_LEAD: el usuario es un potencial cliente que consulta por servicios o deja sus datos.\n- REDACTAR_RESPUESTA: se pide generar/enviar una respuesta a un lead ya calificado.\n- FALLBACK_HUMANO: intención dudosa, ambigua o fuera de alcance.\nAnte cualquier duda, respondé FALLBACK_HUMANO.\n\nMensaje: {{ $json.chatInput }}",
+        "options": {}
+      },
+      "id": "mgr-agent",
+      "name": "AI Agent - Router",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [-400, 300]
+    },
+    {
+      "parameters": { "options": {} },
+      "id": "mgr-model",
+      "name": "Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [-400, 500],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true }, "conditions": [ { "leftValue": "={{ $json.output }}", "rightValue": "CALIFICAR_LEAD", "operator": { "type": "string", "operation": "contains" } } ] }, "outputKey": "CALIFICAR_LEAD" },
+            { "conditions": { "options": { "caseSensitive": true }, "conditions": [ { "leftValue": "={{ $json.output }}", "rightValue": "REDACTAR_RESPUESTA", "operator": { "type": "string", "operation": "contains" } } ] }, "outputKey": "REDACTAR_RESPUESTA" },
+            { "conditions": { "options": { "caseSensitive": true }, "conditions": [ { "leftValue": "={{ $json.output }}", "rightValue": "FALLBACK_HUMANO", "operator": { "type": "string", "operation": "contains" } } ] }, "outputKey": "FALLBACK_HUMANO" }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "mgr-switch",
+      "name": "Switch Intencion",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-160, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "s1", "name": "nombre", "value": "={{ $('Chat Trigger').item.json.nombre || 'Sin nombre' }}", "type": "string" },
+            { "id": "s2", "name": "empresa", "value": "={{ $('Chat Trigger').item.json.empresa || 'Sin empresa' }}", "type": "string" },
+            { "id": "s3", "name": "mensaje", "value": "={{ $('Chat Trigger').item.json.chatInput }}", "type": "string" },
+            { "id": "s4", "name": "contacto", "value": "={{ $('Chat Trigger').item.json.contacto || 'Sin contacto' }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mgr-set1",
+      "name": "Set - Payload Worker1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [120, 120]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "r1", "name": "nombre", "value": "={{ $('Chat Trigger').item.json.nombre || 'Sin nombre' }}", "type": "string" },
+            { "id": "r2", "name": "empresa", "value": "={{ $('Chat Trigger').item.json.empresa || 'Sin empresa' }}", "type": "string" },
+            { "id": "r3", "name": "score", "value": "={{ $('Chat Trigger').item.json.score || 50 }}", "type": "number" },
+            { "id": "r4", "name": "clasificacion", "value": "={{ $('Chat Trigger').item.json.clasificacion || 'TIBIO' }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mgr-set2",
+      "name": "Set - Payload Worker2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [120, 320]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "f1", "name": "status", "value": "fallback", "type": "string" },
+            { "id": "f2", "name": "worker", "value": "fallback_humano", "type": "string" },
+            { "id": "f3", "name": "data", "value": "={{ { \"mensaje\": \"Derivado a supervisor humano\", \"input\": $('Chat Trigger').item.json.chatInput } }}", "type": "object" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mgr-fallback",
+      "name": "Set - Fallback Humano",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [120, 520]
+    },
+    {
+      "parameters": {
+        "workflowId": { "__rl": true, "mode": "list", "value": "" },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nombre": "={{ $json.nombre }}",
+            "empresa": "={{ $json.empresa }}",
+            "mensaje": "={{ $json.mensaje }}",
+            "contacto": "={{ $json.contacto }}"
+          }
+        },
+        "options": { "waitForSubWorkflow": true }
+      },
+      "id": "mgr-exec1",
+      "name": "Execute Worker1",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [360, 120]
+    },
+    {
+      "parameters": {
+        "workflowId": { "__rl": true, "mode": "list", "value": "" },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nombre": "={{ $json.nombre }}",
+            "empresa": "={{ $json.empresa }}",
+            "score": "={{ $json.score }}",
+            "clasificacion": "={{ $json.clasificacion }}"
+          }
+        },
+        "options": { "waitForSubWorkflow": true }
+      },
+      "id": "mgr-exec2",
+      "name": "Execute Worker2",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [360, 320]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "l1", "name": "timestamp", "value": "={{ $now.toISO() }}", "type": "string" },
+            { "id": "l2", "name": "worker_invocado", "value": "={{ $json.worker }}", "type": "string" },
+            { "id": "l3", "name": "params_enviados", "value": "={{ JSON.stringify($json) }}", "type": "string" },
+            { "id": "l4", "name": "respuesta_devuelta", "value": "={{ JSON.stringify($json.data || $json) }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mgr-logset",
+      "name": "Set - Armar Log",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [620, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "list", "value": "" },
+        "sheetName": { "__rl": true, "mode": "list", "value": "" },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "mgr-sheets",
+      "name": "Log - Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [860, 300],
+      "credentials": {}
+    }
+  ],
+  "connections": {
+    "Chat Trigger": { "main": [[{ "node": "AI Agent - Router", "type": "main", "index": 0 }]] },
+    "Gemini Model": { "ai_languageModel": [[{ "node": "AI Agent - Router", "type": "ai_languageModel", "index": 0 }]] },
+    "AI Agent - Router": { "main": [[{ "node": "Switch Intencion", "type": "main", "index": 0 }]] },
+    "Switch Intencion": {
+      "main": [
+        [{ "node": "Set - Payload Worker1", "type": "main", "index": 0 }],
+        [{ "node": "Set - Payload Worker2", "type": "main", "index": 0 }],
+        [{ "node": "Set - Fallback Humano", "type": "main", "index": 0 }],
+        [{ "node": "Set - Fallback Humano", "type": "main", "index": 0 }]
+      ]
+    },
+    "Set - Payload Worker1": { "main": [[{ "node": "Execute Worker1", "type": "main", "index": 0 }]] },
+    "Set - Payload Worker2": { "main": [[{ "node": "Execute Worker2", "type": "main", "index": 0 }]] },
+    "Execute Worker1": { "main": [[{ "node": "Set - Armar Log", "type": "main", "index": 0 }]] },
+    "Execute Worker2": { "main": [[{ "node": "Set - Armar Log", "type": "main", "index": 0 }]] },
+    "Set - Fallback Humano": { "main": [[{ "node": "Set - Armar Log", "type": "main", "index": 0 }]] },
+    "Set - Armar Log": { "main": [[{ "node": "Log - Google Sheets", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}
