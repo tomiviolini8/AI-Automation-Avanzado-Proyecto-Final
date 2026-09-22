@@ -1,88 +1,96 @@
-# AI Automation Avanzado — Proyecto Final
+# AI Automation Avanzado — Proyecto Final Integrador
 
-Proyecto integrador del curso **IA / Automatización Avanzada (CoderHouse)**.
+Agente calificador de **leads comerciales** para una consultora de automatización/IA
+orientada a **PyMEs y concesionarias de La Plata**. El proyecto crece módulo a módulo
+(M1 → M11) sobre **n8n self-hosted**, partiendo siempre del workflow del módulo anterior.
 
-Este repositorio contiene un único proyecto que **evoluciona módulo a módulo**: cada checkpoint parte del flujo del módulo anterior y le suma nuevas capacidades (memoria, integraciones, RAG, voz, etc.) hasta llegar al Proyecto Final Integrador (M11).
-
-**Autor:** Tomás Violini · **Plataforma:** n8n (self-hosted vía Docker)
-
----
-
-## 🎯 El proyecto
-
-Un **agente de IA para calificación de leads comerciales** orientado a una consultora de automatización e IA que da servicios a PyMEs y concesionarias de la zona de La Plata, Argentina.
-
-El agente recibe consultas entrantes desestructuradas, interpreta la necesidad del potencial cliente, clasifica el lead (CALIENTE / TIBIO / FRÍO) según intención de compra y urgencia, lo registra en una base de datos, y notifica al operador humano.
+> Curso: **AI Automation Avanzado** — CoderHouse
+> Autor: **Tomi Violini**
 
 ---
 
-## 📚 Roadmap de módulos
+## 🧱 Stack
 
-| Módulo | Estado | Qué agrega |
-|--------|--------|------------|
-| **M1** — Agente base | ✅ | Agente autónomo: Chat Trigger → AI Agent (Gemini) → Airtable + log |
-| **M2** — Orquestación multi-agente | ✅ | Patrón Manager-Worker con sub-workflows |
-| M3 → M11 | ⏳ | Memoria, integraciones, RAG, voz, … |
-
----
-
-## 🧩 Módulo 1 — Agente base
-
-Agente autónomo individual en un solo lienzo:
-
-- **Chat Trigger** → **AI Agent** (Tools Agent, modelo Gemini) → tool **Airtable** (guardar lead)
-- **Log Gmail** de observabilidad
-
-Archivo: `checkpoint1_tomas_violini.json`
+- **n8n** self-hosted (Docker, localhost)
+- **Google Gemini** (clasificación + summarization con modelo Flash)
+- **Airtable** como base de datos relacional (leads + memoria)
+- **Gmail / Sheets** para logging y observabilidad
 
 ---
 
-## 🧠 Módulo 2 — Orquestación Multi-Agente (Manager-Worker)
+## 🗺️ Evolución por módulos
 
-Se toma el agente del M1 y se lo reorganiza en el patrón **Manager-Worker** con sub-workflows independientes, rompiendo el antipatrón del "workflow mono-bloque".
+### M1 — Agente base ✅
+Flujo mínimo funcional: `Chat Trigger → AI Agent (Tools Agent, Gemini) → tool Airtable`,
+con log en Gmail para observabilidad. Califica un lead y lo guarda.
 
-### Cómo funciona
+### M2 — Arquitectura multi-agente (Manager-Worker) ✅
+- **Manager** clasifica la intención del mensaje y delega en un Worker vía
+  `Execute Workflow` (Wait for child).
+- **Worker 1 — Calificar & Guardar Lead:** reutiliza la lógica de M1 + Airtable.
+- **Worker 2 — Redactar Respuesta:** genera un mensaje de seguimiento.
+- **Log final** (Gmail/Sheets) con worker invocado + parámetros + respuesta.
 
-- El **Manager** recibe el mensaje, un AI Agent (Gemini) clasifica la intención en una taxonomía cerrada y un nodo Switch delega la tarea al Worker correspondiente vía **Execute Workflow** (con *Wait for child to finish*).
-- **Worker 1 — Calificar & Guardar Lead:** califica el lead y lo guarda en Airtable (reutiliza la lógica del M1).
-- **Worker 2 — Redactar Respuesta:** redacta un mail de seguimiento según el score.
-- **Log de trazabilidad:** nodo Gmail final que registra worker invocado, parámetros y respuesta.
+**Taxonomía cerrada de intenciones:** `CALIFICAR_LEAD` · `REDACTAR_RESPUESTA` · `FALLBACK_HUMANO`
 
-### Taxonomía de intenciones
+### M3 — Memoria de Largo Plazo persistente ✅ (entregable actual)
+Capa de persistencia correlacionada por **`Session_ID`** que erradica la amnesia entre
+ejecuciones. Se inserta en el Manager, entre el trigger y el agente.
 
-`CALIFICAR_LEAD` · `REDACTAR_RESPUESTA` · `FALLBACK_HUMANO` (vía de escape ante dudas)
+**Circuito:**
+1. **Lectura (post-trigger):** `Airtable → Search Records` filtrando por `Session_ID`
+   (con *Always Output Data = ON*). Un `IF` bifurca según exista o no registro.
+2. **Rama nuevo:** `Create Record` inicial limpio (`Estado del Caso = NUEVO`, `msg_count = 1`),
+   sin variables vacías.
+3. **Rama recurrente:** inyecta `user_name` / `Estado del Caso` / `Resumen Consolidado`
+   en el **System Prompt** del agente, encapsulados con delimitadores rígidos
+   `[INICIO DE CONTEXTO COMPARTIDO] ... [FIN DEL CONTEXTO COMPARTIDO]` (anti prompt-injection).
+   En paralelo, un `Update` incrementa `msg_count`.
+4. **Summarization:** al alcanzar 5 mensajes, un `IF` dispara un LLM económico
+   (**Gemini Flash**) que devuelve un JSON `{ asunto_principal, puntos_clave[], accion_requerida }`.
+   Un `Update Record` idempotente persiste el resumen y resetea `msg_count = 0`.
+   Regla anti-ruido: solo resumen analítico + indicadores; prohibido HTML/logs/transcripciones crudas.
 
-### Contrato de datos
+---
 
-Cada Worker devuelve un JSON estandarizado:
+## 🗃️ Esquema de la base de memoria (tabla `Memoria`)
 
-```json
-{ "status": "success", "worker": "calificar_lead", "data": { "lead_id": "...", "score": 70, "clasificacion": "CALIENTE" } }
+Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
+
+| Campo | Tipo Airtable | Rol |
+|---|---|---|
+| `Session_ID` | Single line text (primario) | Clave de correlación por sesión |
+| `user_name` | Long text | Nombre del lead |
+| `Estado del Caso` | Single select | `NUEVO`, `EN_CALIFICACION`, `RESPUESTA_ENVIADA`, `FALLBACK_HUMANO`, `CERRADO` |
+| `Resumen Consolidado` | Long text | `last_summary` (JSON del summarizer, idempotente) |
+| `Datos Clave` | Long text | Indicadores accionables (rubro, presupuesto, urgencia) |
+| `Fecha de Actualización` | Date (con hora) | Timestamp de última escritura |
+| `msg_count` | Number (entero) | Contador de mensajes; dispara summarization al llegar a 5 y se resetea a 0 |
+
+---
+
+## ▶️ Cómo correr
+
+1. Levantar n8n con Docker (localhost).
+2. Configurar credenciales: **Google Gemini (PaLM) API** y **Airtable Personal Access Token**.
+3. Importar los workflows (`Importar from File`) desde la carpeta del módulo.
+4. Crear en Airtable la base con las tablas `Leads` y `Memoria` (ver esquema arriba).
+5. Abrir el chat del `Chat Trigger` y probar.
+
+---
+
+## 📂 Estructura sugerida del repo
+
+```
+/
+├── README.md
+├── /M1  → workflow del módulo 1
+├── /M2  → manager + worker1 + worker2
+└── /M3  → manager (con memoria) + workers + PreEntrega_Modulo3_TomiViolini.pdf
 ```
 
-Ante fallos, cada Worker devuelve `{ "status": "error", ... }` mediante un Error Trigger, y el Manager continúa sin bloquearse.
-
-### Archivos del módulo
-
-```
-/M2-multiagente
-  ├── preentrega_modulo2_violini_tomas.pdf
-  ├── manager_modulo2.json
-  ├── worker1_calificar_lead.json
-  └── worker2_redactar_respuesta.json
-```
-
-### Para importar en n8n
-
-1. Importar primero los dos Workers, luego el Manager.
-2. Reasignar credenciales en cada nodo (Gemini, Airtable, Gmail).
-3. En el Manager, verificar que los nodos Execute Workflow apunten al Worker correcto y tengan *Wait for child to finish* activado.
-
 ---
 
-## 🛠️ Stack
+## 🚧 Roadmap
 
-- n8n self-hosted (Docker, localhost)
-- Google Gemini (LLM)
-- Airtable (persistencia de leads)
-- Gmail (observabilidad / notificaciones)
+M4 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
