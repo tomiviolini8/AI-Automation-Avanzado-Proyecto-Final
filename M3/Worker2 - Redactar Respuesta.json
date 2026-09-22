@@ -1,0 +1,242 @@
+{
+  "name": "Worker2 - Redactar Respuesta",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "nombre"
+            },
+            {
+              "name": "empresa"
+            },
+            {
+              "name": "score",
+              "type": "number"
+            },
+            {
+              "name": "clasificacion"
+            }
+          ]
+        }
+      },
+      "id": "7f5d275a-c5c6-4077-a9ca-cd712f98faa8",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Redactá un mail de seguimiento comercial para un lead. Devolvé SOLO un JSON (sin backticks) con la forma:\n{\"asunto\": \"<asunto>\", \"cuerpo\": \"<cuerpo del mail>\"}\n\nTono segun clasificacion:\n- CALIENTE: directo, propuesta concreta, ofrecer llamada esta semana.\n- TIBIO: nurturing, aportar valor, sin presionar.\n- FRIO: informativo y breve, dejar puerta abierta.\n\nFirmá como \"Equipo de Consultoria en Automatizacion e IA - La Plata\".\n\nNombre: {{ $json.nombre }}\nEmpresa: {{ $json.empresa }}\nScore: {{ $json.score }}\nClasificacion: {{ $json.clasificacion }}",
+        "options": {}
+      },
+      "id": "b9e01ff8-5eda-43a8-87fb-2bbf9e5b3ab4",
+      "name": "AI Agent - Redaccion",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "1f89ea14-48b3-48ca-92cf-ce87021fb66e",
+      "name": "Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        240,
+        208
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "lcoj2GXDoelxoXmi",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "p1",
+              "name": "parsed",
+              "value": "={{ JSON.parse($json.output) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4ec095fe-22e2-43ec-95c1-e31e932924f9",
+      "name": "Parse JSON Agent",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        528,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "o1",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "o2",
+              "name": "worker",
+              "value": "redactar_respuesta",
+              "type": "string"
+            },
+            {
+              "id": "o3",
+              "name": "data",
+              "value": "={{ { \"asunto\": $json.parsed.asunto, \"cuerpo\": $json.parsed.cuerpo } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ccb0bf73-62ab-42fb-9c3c-87e8030498a8",
+      "name": "Contrato Salida",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        768,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "97b7ce11-9f06-4b00-94d5-efb9c9545ae9",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        528,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "e2",
+              "name": "worker",
+              "value": "redactar_respuesta",
+              "type": "string"
+            },
+            {
+              "id": "e3",
+              "name": "message",
+              "value": "Fallo en la redaccion de la respuesta",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5c305b1-bf9e-4c6a-8ae3-1b23faf10fa9",
+      "name": "Contrato Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        768,
+        224
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Redaccion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Redaccion",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Redaccion": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON Agent": {
+      "main": [
+        [
+          {
+            "node": "Contrato Salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Contrato Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d7a05aa4-3982-4378-bf78-7165157a158d",
+  "meta": {
+    "instanceId": "6176454f87cf7a8894fb913c6e0908458ebc077996cdec55f49f2f2f2ca7579c"
+  },
+  "nodeGroups": [],
+  "id": "XQr4HJGszGQIKqL2",
+  "tags": []
+}

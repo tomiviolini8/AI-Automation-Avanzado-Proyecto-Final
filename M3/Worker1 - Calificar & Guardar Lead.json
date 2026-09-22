@@ -1,0 +1,401 @@
+{
+  "name": "Worker1 - Calificar & Guardar Lead",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "nombre"
+            },
+            {
+              "name": "empresa"
+            },
+            {
+              "name": "mensaje"
+            },
+            {
+              "name": "contacto"
+            }
+          ]
+        }
+      },
+      "id": "b5aa9a23-f7dc-4215-8d96-cce6e89f85c0",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analizá este lead comercial y devolvé SOLO un JSON (sin texto extra, sin backticks) con esta forma exacta:\n{\"score\": <numero 1-100>, \"clasificacion\": \"<CALIENTE|TIBIO|FRIO>\", \"motivo\": \"<breve>\"}\n\nCriterio de score:\n- Urgencia explícita, presupuesto mencionado, empresa mediana/grande, intención de compra clara => mayor score.\n- Consulta vaga, sin datos, curiosidad => menor score.\nCALIENTE >=70, TIBIO 40-69, FRIO <40.\n\nNombre: {{ $json.nombre }}\nEmpresa: {{ $json.empresa }}\nMensaje: {{ $json.mensaje }}\nContacto: {{ $json.contacto }}",
+        "options": {}
+      },
+      "id": "89d97a49-9380-4f89-a6b4-ca80b64e3e08",
+      "name": "AI Agent - Scoring",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1040,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "34661478-dc36-437c-8b58-fe4a64c9b4d7",
+      "name": "Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        -1024
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "lcoj2GXDoelxoXmi",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "parsed",
+              "value": "={{ JSON.parse($json.output) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eef0dd48-23e5-491e-b959-72f3b97b0ff1",
+      "name": "Parse JSON Agent",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1328,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appMxRy6AJoqDNuYO",
+          "mode": "list",
+          "cachedResultName": "Checkpoint1 - Calificacion Leads",
+          "cachedResultUrl": "https://airtable.com/appMxRy6AJoqDNuYO"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldp4AOHimIS6eT2",
+          "mode": "list",
+          "cachedResultName": "Leads",
+          "cachedResultUrl": "https://airtable.com/appMxRy6AJoqDNuYO/tbldp4AOHimIS6eT2"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Empresa",
+              "displayName": "Empresa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Rubro",
+              "displayName": "Rubro",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Necesidad",
+              "displayName": "Necesidad",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Clasificacion",
+              "displayName": "Clasificacion",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "CALIENTE",
+                  "value": "CALIENTE"
+                },
+                {
+                  "name": "TIBIO",
+                  "value": "TIBIO"
+                },
+                {
+                  "name": "FRIO",
+                  "value": "FRIO"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Urgencia",
+              "displayName": "Urgencia",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Alta",
+                  "value": "Alta"
+                },
+                {
+                  "name": "Media",
+                  "value": "Media"
+                },
+                {
+                  "name": "Baja",
+                  "value": "Baja"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "1ea754d9-6b20-46ad-9870-0aa09b38fb2b",
+      "name": "Airtable - Guardar Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1568,
+        -1216
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "EE6FRu7vqNpl8G0U",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "o1",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "o2",
+              "name": "worker",
+              "value": "calificar_lead",
+              "type": "string"
+            },
+            {
+              "id": "o3",
+              "name": "data",
+              "value": "={{ { \"lead_id\": $json.id, \"score\": $('Parse JSON Agent').item.json.parsed.score, \"clasificacion\": $('Parse JSON Agent').item.json.parsed.clasificacion } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9b6c0c00-ccdf-4850-ac26-07f9f340647a",
+      "name": "Contrato Salida",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1808,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "e2",
+              "name": "worker",
+              "value": "calificar_lead",
+              "type": "string"
+            },
+            {
+              "id": "e3",
+              "name": "message",
+              "value": "Fallo en la calificacion o guardado del lead",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2e66e9cc-cd34-453a-b311-7224599b3a25",
+      "name": "Contrato Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1568,
+        -992
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2cd9e7c0-edf1-4a90-9319-95a99c6447f7",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        -992
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Scoring",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Scoring": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON Agent": {
+      "main": [
+        [
+          {
+            "node": "Airtable - Guardar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable - Guardar Lead": {
+      "main": [
+        [
+          {
+            "node": "Contrato Salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Contrato Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e2b1c0df-519b-4339-9dde-de60d68a7e12",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6176454f87cf7a8894fb913c6e0908458ebc077996cdec55f49f2f2f2ca7579c"
+  },
+  "nodeGroups": [],
+  "id": "0pRpn0v9Z7rZiuIo",
+  "tags": []
+}
