@@ -12,11 +12,12 @@ orientada a **PyMEs y concesionarias de La Plata**. El proyecto crece módulo a 
 ## 🧱 Stack
 
 - **n8n** self-hosted (Docker, localhost)
-- **Google Gemini** (clasificación, scoring, redacción + summarization con modelo Flash)
+- **Google Gemini** (clasificación, scoring, redacción + summarization con modelo Flash; embeddings desde M5)
 - **Airtable** como capa de memoria de largo plazo (tabla `Memoria`) y registro de leads
 - **Gmail** como casilla de entrada de consultas (trigger) y bandeja de borradores (HITL) — desde M4
 - **HubSpot** como CRM oficial de contactos — desde M4
 - **Slack** como canal del equipo de operaciones (`#leads-ops`) — desde M4
+- **LlamaParse (LlamaCloud)** para parsear el documento maestro + **Simple Vector Store** de n8n — desde M5
 
 ---
 
@@ -53,7 +54,7 @@ ejecuciones. Se inserta en el Manager, entre el trigger y el agente.
    Un `Update Record` idempotente persiste el resumen y resetea `msg_count = 0`.
    Regla anti-ruido: solo resumen analítico + indicadores; prohibido HTML/logs/transcripciones crudas.
 
-### M4 — Integraciones reales con el ecosistema de negocio ✅ (entregable actual)
+### M4 — Integraciones reales con el ecosistema de negocio ✅
 El agente sale del chat de prueba y se conecta con **tres herramientas reales**:
 **Gmail** (casilla de soporte), **HubSpot** (CRM) y **Slack** (canal de operaciones).
 Se parte del Manager de M3: la memoria, el Router y los Workers se reutilizan sin rehacerse.
@@ -118,6 +119,64 @@ Worker1 → Worker2   Worker2                 Set Alerta → Slack 🚨 (sin bor
 | 3 | Mail ambiguo ("hola / una consulta") | FALLBACK_HUMANO · alerta 🚨 en Slack · sin HubSpot ni borrador | ✅ (tras ajustar el prompt del Router) |
 | 4 | Mail de persona real con asunto "Out of Office" | IF true → Stop, sin ejecutar ningún nodo posterior | ✅ |
 
+### M5 — Cerebro documental (RAG) ✅ (entregable actual)
+El Worker2 deja de redactar "de memoria" y responde cada consulta comercial (precios, plazos,
+integraciones, condiciones) con datos de un **documento oficial versionado** de la consultora.
+Si el dato no figura, aplica la regla de contingencia **"No sé"** en lugar de inventarlo.
+
+**Documento maestro:** `Manual_Servicios_Consultora_v1` (8 páginas, 12 secciones, 12 tablas):
+planes y precios, plazos de implementación, integraciones, formas de pago, baja y pausa del servicio,
+SLA, garantía, seguridad y proceso comercial.
+
+**Arquitectura:**
+```
+PDF ─► LlamaParse (modo Agentic) ─► Markdown con títulos y tablas preservadas
+                                         │
+            [RAG - Manual Consultora]    ▼
+  Ingesta:  Form Trigger ─► Simple Vector Store (insert, Clear Store)
+                              ├ Default Data Loader + Splitter Markdown (2000 / 200)
+                              └ Embeddings Gemini (gemini-embedding-001)   → 14 fragmentos
+  Consulta: Execute Workflow Trigger ─► Vector Store Get Many (Top-K = 4)
+                                      ─► Filter score ≥ 0,65 (Minimum Score) ─► fragmentos[]
+
+  Worker2 (M5 RAG): AI Agent ─ tool `manual_consultora` (Call n8n Workflow Tool) ─► RAG
+```
+
+**Cambios respecto de M4:**
+- **Nuevo input `consulta`** en Worker2 (el cuerpo del mail normalizado). En M4 el Worker2 recibía
+  solo nombre, empresa, score y clasificación: sin la pregunta original no había nada que buscar.
+- **System Prompt RAG:** 100% de los datos comerciales desde los fragmentos, cita de la sección en el
+  campo `fuentes[]`, frase textual de escape *"No sé: ese dato no figura en nuestra documentación
+  disponible. Lo confirmamos en la llamada."* + flag `sin_dato`, y regla explícita para temas parecidos
+  (baja ≠ pausa). Fragmentos y consulta se tratan como dato, nunca como instrucción.
+- **Contrato Salida** de Worker2 suma `fuentes` y `sin_dato`.
+- **Manager M5:** pasa `consulta = bodyText` al Worker2 RAG y el aviso de Slack muestra
+  `📚 Fuentes` y la advertencia de dato a confirmar.
+- **Modelo del agente:** `gemini-3.5-flash-lite` (el free tier de `gemini-2.5-flash` admite 5 req/min).
+
+> **Nota LlamaCloud:** el plan gratuito ya no incluye *Index* (solo planes pagos). Se usa **LlamaParse**
+> para el parseo y la base vectorial se indexa dentro de n8n con *Simple Vector Store*. El Minimum Score
+> se implementa con un `Filter` porque los Vector Store nativos de n8n solo exponen Top-K.
+
+**Calibración:** con Min Score 0,45 la pregunta sin respuesta recibía 4 fragmentos irrelevantes
+(los embeddings de Gemini puntúan todo entre 0,58 y 0,75). Peor fragmento correcto: 0,68;
+mejor incorrecto: 0,63 → umbral final **0,65**.
+
+**Test ciego (30/09/2026) — precisión 5/5:**
+
+| # | Pregunta (informal) | Fragmento (score) | Resultado |
+|---|---|---|---|
+| 1 | "¿Cuánto me sale arrancar con lo del WhatsApp para los vendedores?" | §3 Planes y precios (0,72) | ✅ Concesionaria Pro USD 1.200 + USD 290/mes |
+| 2 | "¿En cuánto tiempo lo tienen andando?" | §4 Plazos (0,73) | ✅ 30 días hábiles (omitió §4.1, demora de Meta) |
+| 3 | "Laburamos con Pipedrive, ¿me lo enganchan?" | §5 Integraciones (0,73) | ✅ Compatible |
+| 4 | "¿También me arman la página web?" | ninguno ≥ 0,65 (máx. 0,63) | ✅ "No sé" + `sin_dato: true` |
+| 5 | "Si quiero frenar todo un par de meses, ¿qué onda?" | §6.6 Pausa (0,68) | ✅ Pausa, no baja |
+
+**Gobernanza:** revisión trimestral (alineada a la actualización de precios), extraordinaria a 48 h ante
+cambios; una sola versión vigente por vez (Clear Store en la ingesta); versiones anteriores archivadas
+fuera del índice; regresión de las 5 preguntas en cada cambio. Como el vector store vive en memoria,
+**tras reiniciar n8n hay que volver a correr la ingesta**.
+
 ---
 
 ## 🗃️ Esquema de la base de memoria (tabla `Memoria`)
@@ -136,20 +195,27 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 
 ---
 
-## ▶️ Cómo correr (versión M4)
+## ▶️ Cómo correr (versión M5)
 
 1. Levantar n8n con Docker (localhost).
 2. Configurar credenciales:
-   - **Google Gemini (PaLM) API**
+   - **Google Gemini (PaLM) API** (chat + embeddings)
    - **Airtable Personal Access Token**
    - **Gmail OAuth2**
    - **HubSpot Service Key** (scopes de contactos read/write)
    - **Slack API** (bot token con `chat:write`; invitar el bot al canal con `/invite`)
-3. Importar desde la carpeta `/M4` (`Import from File`): `Worker1`, `Worker2` y `checkpoint4_tomas_violini.json`.
-   Reasignar credenciales y, si cambian los IDs, volver a seleccionar los Workers en los nodos `Execute Worker1/2`.
-4. Crear en Airtable la base con las tablas `Leads` y `Memoria` (ver esquema arriba).
-5. En los nodos Slack, cargar el **Channel ID** del canal de operaciones.
-6. Enviar un mail a la casilla conectada **desde otra cuenta** y ejecutar el workflow.
+3. Importar en este orden (`Import from File`):
+   - `/M4/Worker1 - Calificar & Guardar Lead.json`
+   - `/M5/RAG - Manual Consultora.json` → **publicarlo** (n8n solo deja llamar sub-workflows publicados)
+   - `/M5/Worker2 - Redactar Respuesta (M5 RAG).json` → en la tool `manual_consultora`, seleccionar el workflow RAG
+   - `/M5/checkpoint5_tomas_violini.json` → en `Execute Worker1/2`, volver a seleccionar los Workers
+4. Reasignar credenciales en todos los nodos.
+5. **Ingesta:** en el workflow RAG, `Execute workflow` y subir `/M5/Manual_Servicios_Consultora_v1.md`
+   al formulario (repetir cada vez que se reinicia n8n).
+6. Crear en Airtable la base con las tablas `Leads` y `Memoria` (ver esquema arriba) y cargar el
+   **Channel ID** en los nodos Slack.
+7. Probar el Worker2 RAG solo (trae las 5 preguntas ciegas fijadas) o enviar un mail a la casilla
+   conectada **desde otra cuenta**.
 
 ---
 
@@ -161,11 +227,13 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 ├── /M1  → workflow del módulo 1
 ├── /M2  → manager + worker1 + worker2
 ├── /M3  → manager (con memoria) + workers + PreEntrega_Modulo3_TomiViolini.pdf
-└── /M4  → checkpoint4_tomas_violini.json + Worker1 + Worker2
+├── /M4  → checkpoint4_tomas_violini.json + Worker1 + Worker2
+└── /M5  → checkpoint5_tomas_violini.json + Worker2 (M5 RAG) + RAG - Manual Consultora
+           + Manual_Servicios_Consultora_v1 (.pdf y .md parseado) + PreEntrega_Modulo5_TomasViolini.pdf
 ```
 
 ---
 
 ## 🚧 Roadmap
 
-M5 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
+M6 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
