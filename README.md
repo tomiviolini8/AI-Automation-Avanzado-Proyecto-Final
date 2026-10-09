@@ -18,6 +18,8 @@ orientada a **PyMEs y concesionarias de La Plata**. El proyecto crece módulo a 
 - **HubSpot** como CRM oficial de contactos — desde M4
 - **Slack** como canal del equipo de operaciones (`#leads-ops`) — desde M4
 - **LlamaParse (LlamaCloud)** para parsear el documento maestro + **Simple Vector Store** de n8n — desde M5
+- **Telegram** (bot oficial) como canal de voz + **OpenAI Whisper** (STT) + **ElevenLabs** (TTS) — desde M6
+- **ngrok** como túnel HTTPS para exponer los webhooks del n8n local — desde M6
 
 ---
 
@@ -119,7 +121,7 @@ Worker1 → Worker2   Worker2                 Set Alerta → Slack 🚨 (sin bor
 | 3 | Mail ambiguo ("hola / una consulta") | FALLBACK_HUMANO · alerta 🚨 en Slack · sin HubSpot ni borrador | ✅ (tras ajustar el prompt del Router) |
 | 4 | Mail de persona real con asunto "Out of Office" | IF true → Stop, sin ejecutar ningún nodo posterior | ✅ |
 
-### M5 — Cerebro documental (RAG) ✅ (entregable actual)
+### M5 — Cerebro documental (RAG) ✅
 El Worker2 deja de redactar "de memoria" y responde cada consulta comercial (precios, plazos,
 integraciones, condiciones) con datos de un **documento oficial versionado** de la consultora.
 Si el dato no figura, aplica la regla de contingencia **"No sé"** en lugar de inventarlo.
@@ -177,6 +179,59 @@ cambios; una sola versión vigente por vez (Clear Store en la ingesta); versione
 fuera del índice; regresión de las 5 preguntas en cada cambio. Como el vector store vive en memoria,
 **tras reiniciar n8n hay que volver a correr la ingesta**.
 
+### M6 — Ecosistema de voz (Voice AI: STT/TTS) ✅ (entregable actual)
+El agente pasa a **escuchar y hablar**: el cliente manda una nota de voz por Telegram y recibe la
+respuesta en audio, con datos del mismo RAG de M5. Workflow nuevo **`Manager - Voz M6`**, que reutiliza
+como tool el workflow publicado `RAG - Manual Consultora` (no se rehízo nada de M5).
+
+**Flujo:**
+```
+Telegram Trigger (message) → IF ¿nota de voz ≤ 2 min? ─(no)→ Telegram "solo respondo notas de voz"
+      │ sí
+      ├─► Send Chat Action "grabando audio…"
+      └─► Telegram Get File (binario `data`) → OpenAI Whisper (data · es)
+                 → IF contingencia ─(falla)→ Telegram "No pude entender bien el audio…"
+                       │ ok
+        AI Agent - Voz (Tools Agent · Gemini · memoria por chat_id · tool manual_consultora → RAG M5)
+                 → Set contención 200 caracteres → ElevenLabs TTS → Telegram Send Audio (data + caption)
+```
+
+**Configuración clave:**
+
+| Pieza | Configuración |
+|---|---|
+| Entrada | Bot oficial de Telegram (BotFather). El Telegram Trigger **no descarga notas de voz** (solo foto/documento/video), por eso se agrega `Telegram → Get File` con `message.voice.file_id`. |
+| Oídos | `OpenAI → Audio → Transcribe a Recording` (whisper-1), **Input Binary Property = `data`**, **Language = `es`**, reintento ×2 y *continue on fail*. |
+| Cerebro | AI Agent (Tools Agent) con el texto limpio de Whisper, `gemini-3.5-flash-lite` (temp 0,3), memoria de ventana 6 por `chat_id` y tool `manual_consultora` (RAG M5). |
+| Contención financiera | System Message: **máximo 200 caracteres** por respuesta + reglas VUI (una idea, sin listas/emojis/símbolos, números escritos como se dicen, cierre con pregunta). Segunda capa: `Set` que limpia markdown y recorta a 200. |
+| Voz | Nodo verificado `@elevenlabs/n8n-nodes-elevenlabs` → Text to Speech · **Eleven Multilingual v2** · voz *Brian* (premade) · `stability 0,6` · `similarity_boost (Clarity) 0,8` · `mp3_44100_64`. |
+| Salida | `Telegram → Send Audio`, Binary File ON, campo `data`, caption con el mismo texto (doble canal). |
+| Contingencia | IF después de Whisper con 4 condiciones: sin error · texto no vacío · ≥ 4 caracteres · **no coincide con alucinaciones típicas de Whisper** (`/(amara\.org\|subtítulos realizados\|gracias por ver\|suscríbete)/i`). |
+| Compliance | Workflow settings: no guardar ejecuciones exitosas, fallidas, manuales ni progreso · timeout 120 s · pruning 24 h. El binario solo existe durante la ejecución y se elimina al cerrarla. Al LLM solo le llega texto. |
+
+**Viabilidad (ROI y fatiga cognitiva):** ≈ US$ 0,04 por consulta (Whisper US$ 0,006/min + ElevenLabs ≈ US$ 0,00018/carácter).
+Con 300 consultas/mes y el tope de 200 caracteres el costo es ≈ US$ 23 contra ≈ US$ 90 de tiempo de vendedor ahorrado (**ROI ≈ +290 %**);
+sin tope (≈ 700 caracteres) hace falta el plan Pro y el ROI pasa a **≈ −10 %**. El audio es lineal y no se puede releer, por eso
+una idea por mensaje y caption de respaldo. **Veredicto: viable con restricciones** — consultas puntuales y primer contacto por voz;
+comparaciones, propuestas y datos sensibles por texto o humano.
+
+> **Notas técnicas:**
+> - n8n 2.x eliminó el modo de binarios en memoria (`N8N_DEFAULT_BINARY_DATA_MODE=default`); la volatilidad se logra no persistiendo ejecuciones.
+> - Las voces de la *Voice Library* de ElevenLabs devuelven **402** en el plan gratuito vía API → usar voces predefinidas.
+> - Telegram exige webhook **HTTPS público**: n8n local expuesto con ngrok (dominio fijo) + variable `WEBHOOK_URL`.
+> - Ante audio en silencio, Whisper no devuelve vacío: alucina *"Subtítulos realizados por la comunidad de Amara.org"* → condición regex en el IF.
+
+**Pruebas (08/10/2026):**
+
+| # | Entrada | Resultado |
+|---|---|---|
+| 1 | 🎙️ "¿Cuánto me sale arrancar con lo del WhatsApp para la agencia?" | ✅ Audio: "El plan Arranque sale 350 dólares de instalación y 90 mensuales más IVA. ¿Te agendo una llamada?" |
+| 2 | 🎙️ "¿En cuánto tiempo lo tienen andando?" | ✅ Audio: "Para el plan Arranque demora diez días hábiles desde la reunión de inicio. ¿Te agendo una llamada?" |
+| 3 | 🎙️ Audio de 2 s en silencio | ✅ Texto de contingencia (tras agregar la regex; antes Whisper alucinaba texto) |
+| 4 | ✍️ Mensaje de texto | ✅ Aviso: el canal responde notas de voz |
+
+Latencia ≈ 15 s de punta a punta (Whisper 2,7 s · agente + RAG 4,7 s · ElevenLabs 2,1 s · Telegram 5,3 s). Respuestas de 95–110 caracteres.
+
 ---
 
 ## 🗃️ Esquema de la base de memoria (tabla `Memoria`)
@@ -195,7 +250,7 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 
 ---
 
-## ▶️ Cómo correr (versión M5)
+## ▶️ Cómo correr (versión M6)
 
 1. Levantar n8n con Docker (localhost).
 2. Configurar credenciales:
@@ -217,6 +272,21 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 7. Probar el Worker2 RAG solo (trae las 5 preguntas ciegas fijadas) o enviar un mail a la casilla
    conectada **desde otra cuenta**.
 
+**Canal de voz (M6):**
+
+8. Instalar el community node `@elevenlabs/n8n-nodes-elevenlabs` (Settings → Community nodes).
+9. Crear el bot con @BotFather y las credenciales **Telegram API**, **OpenAI** (cuenta con saldo) y
+   **ElevenLabs** (key con acceso a Text to Speech; usar una voz predefinida).
+10. Exponer n8n con HTTPS y levantar el contenedor con la URL pública:
+    ```
+    ngrok http --url=<tu-dominio>.ngrok-free.dev 5678
+    docker run -d --name n8n --restart unless-stopped -p 5678:5678 -v <carpeta-n8n>:/home/node/.n8n \
+      -e WEBHOOK_URL=https://<tu-dominio>.ngrok-free.dev/ \
+      -e EXECUTIONS_DATA_PRUNE=true -e EXECUTIONS_DATA_MAX_AGE=24 n8nio/n8n
+    ```
+11. Importar `/M6/checkpoint6_tomas_violini.json`, reasignar credenciales, seleccionar el workflow RAG en
+    la tool `manual_consultora` y **publicar**. Mandarle una nota de voz al bot.
+
 ---
 
 ## 📂 Estructura del repo
@@ -228,12 +298,13 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 ├── /M2  → manager + worker1 + worker2
 ├── /M3  → manager (con memoria) + workers + PreEntrega_Modulo3_TomiViolini.pdf
 ├── /M4  → checkpoint4_tomas_violini.json + Worker1 + Worker2
-└── /M5  → checkpoint5_tomas_violini.json + Worker2 (M5 RAG) + RAG - Manual Consultora
-           + Manual_Servicios_Consultora_v1 (.pdf y .md parseado) + PreEntrega_Modulo5_TomasViolini.pdf
+├── /M5  → checkpoint5_tomas_violini.json + Worker2 (M5 RAG) + RAG - Manual Consultora
+│          + Manual_Servicios_Consultora_v1 (.pdf y .md parseado) + PreEntrega_Modulo5_TomasViolini.pdf
+└── /M6  → checkpoint6_tomas_violini.json (Manager - Voz M6) + PreEntrega_Modulo6_TomasViolini.pdf
 ```
 
 ---
 
 ## 🚧 Roadmap
 
-M6 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
+M7 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
