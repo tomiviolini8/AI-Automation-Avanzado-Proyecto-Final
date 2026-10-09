@@ -179,7 +179,7 @@ cambios; una sola versión vigente por vez (Clear Store en la ingesta); versione
 fuera del índice; regresión de las 5 preguntas en cada cambio. Como el vector store vive en memoria,
 **tras reiniciar n8n hay que volver a correr la ingesta**.
 
-### M6 — Ecosistema de voz (Voice AI: STT/TTS) ✅ (entregable actual)
+### M6 — Ecosistema de voz (Voice AI: STT/TTS) ✅
 El agente pasa a **escuchar y hablar**: el cliente manda una nota de voz por Telegram y recibe la
 respuesta en audio, con datos del mismo RAG de M5. Workflow nuevo **`Manager - Voz M6`**, que reutiliza
 como tool el workflow publicado `RAG - Manual Consultora` (no se rehízo nada de M5).
@@ -232,6 +232,67 @@ comparaciones, propuestas y datos sensibles por texto o humano.
 
 Latencia ≈ 15 s de punta a punta (Whisper 2,7 s · agente + RAG 4,7 s · ElevenLabs 2,1 s · Telegram 5,3 s). Respuestas de 95–110 caracteres.
 
+### M7 — Diseño arquitectónico de un sistema agéntico vertical (Sales Ops) ✅ (entregable actual)
+Módulo de **diseño** (100 % no-code, sin workflows nuevos): especializa el agente de M1–M6 para la vertical
+**Sales Ops** (captación, calificación y seguimiento de oportunidades B2B) y lo documenta como un informe de
+consultoría. 📄 [`PreEntrega_Modulo7_TomasViolini.pdf`](./M7/PreEntrega_Modulo7_TomasViolini.pdf)
+
+![Arquitectura multi-agente](./M7/M7_arquitectura_multiagente.png)
+
+**Baseline manual (punto de partida):** 20 leads nuevos/mes atendidos por el socio comercial · 30 min por lead
+(20 de primer contacto + 10 de seguimiento) · **10 h/mes** · primera respuesta **≈ 24 h** · cierre **15 %** (3 de 20).
+
+**Framework de priorización** (impacto 40 % · viabilidad no-code 30 % · adopción 30 %):
+
+| Proceso | Puntaje | Decisión |
+|---|---|---|
+| Primera respuesta y calificación de leads | 4,7 | ✅ En alcance |
+| Carga y auditoría del CRM | 4,2 | ✅ En alcance |
+| Seguimiento de leads tibios y objeciones | 4,0 | ✅ En alcance |
+| Cotizaciones formales | 3,1 | ❌ Fuera (toca precios) |
+| Soporte post-venta | 3,0 | ❌ Fuera (otra vertical) |
+
+**Red de agentes** (orquestador determinístico + 6 especialistas):
+
+| Agente | Rol | Estado |
+|---|---|---|
+| A1 Router | Intención (taxonomía cerrada) + campo `senal_critica` (churn / reembolso / legal / precio) | Existente (M4) |
+| A2 Calificador | Score 0–100 y CALIENTE / TIBIO / FRÍO con evidencia textual | Existente (M4) |
+| A3 Redactor RAG | Borrador con `fuentes[]` del manual y regla "No sé" | Existente (M5) |
+| A4 Agente de Voz | Notas de voz en Telegram, ≤ 200 caracteres | Existente (M6) |
+| A5 Seguimiento y Objeciones | Diario: leads TIBIO sin respuesta ≥ 3 días, máx. 2 recordatorios | Diseño (M7) |
+| A6 Auditor de CRM y Atribución | Semanal: duplicados, datos faltantes y canal de origen (solo reporta) | Diseño (M7) |
+
+**Principios de diseño:**
+- **Los agentes proponen, el orquestador ejecuta:** ningún agente de IA tiene tools de escritura; devuelven JSON
+  y el Manager escribe en HubSpot, Gmail (solo borradores), Airtable y Slack.
+- **Mínimo privilegio** por conector (mismo esquema de M4) y **Context Engineering por rol**: cada sub-workflow
+  recibe solo lo que necesita (ej. el Router no ve el score previo; el Auditor no ve cuerpos de mails).
+- La taxonomía sigue cerrada en 3 intenciones; las situaciones críticas viajan en `senal_critica`, no como intención nueva.
+
+**Semáforo operativo de riesgo:**
+
+| Nivel | Acciones |
+|---|---|
+| 🟢 Autónomo | Clasificar, calcular score, registrar memoria, actualizar propiedades fijas del CRM, crear borradores, notificar en Slack, responder notas de voz con datos del manual |
+| 🟡 HITL | Enviar cualquier mail, seguimientos y objeciones, borradores con `sin_dato`, correcciones del auditor |
+| 🔴 Congelado + escalado | Precios/descuentos fuera del manual, reembolsos, baja o pausa (churn), reclamos legales, contratos, dinero, borrar datos |
+
+**Escalado forzado:** doble detección (LLM + palabras clave) → caso congelado → alerta en Slack con botones
+**Tomo el caso / Borrador para revisar / Falso positivo / Escalar a dirección** → Interactivity Request URL hacia un
+webhook de n8n (ngrok) con verificación de firma → registro en CRM y memoria → SLA: recordatorio a las 2 h, escalado a dirección a las 4 h.
+
+**KPIs a 90 días:** primera respuesta 24 h → **< 2 h hábiles** · cierre 15 % → **20 %** · gestión 10 h → **≤ 2 h/mes** ·
+**100 %** de TIBIO con seguimiento en ≤ 3 días · **≥ 70 %** de borradores sin edición · resolución autónoma **≥ 80 %** ·
+**0** errores de precio · "No sé" **≤ 15 %** · CRM sin duplicados · escalados atendidos en **< 4 h hábiles**.
+Escenario: +1 cierre/mes ≈ USD 1.200 de setup + USD 290/mes contra ≈ USD 12/mes de costo operativo.
+
+**Scorecard de calificación (100 pts, sin evidencia = 0):** Necesidad 25 · Encaje con los servicios del manual 20 ·
+Presupuesto 20 · Urgencia 15 · Poder de decisión 10 · Segmento y cobertura 10 → **CALIENTE ≥ 70 · TIBIO 40–69 · FRÍO < 40**.
+Reglas previas: señal crítica → escalado; sin necesidad concreta → fallback; fuera de cobertura → máximo TIBIO.
+Validado contra la prueba 1 de M4 (**92/100, CALIENTE**). Se suma un scorecard de calidad del borrador
+(5 controles, aprobado con ≥ 4/5 y cita de fuente obligatoria) y una versión de portafolio anonimizada.
+
 ---
 
 ## 🗃️ Esquema de la base de memoria (tabla `Memoria`)
@@ -250,7 +311,7 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 
 ---
 
-## ▶️ Cómo correr (versión M6)
+## ▶️ Cómo correr (versión M6 — M7 no agrega workflows)
 
 1. Levantar n8n con Docker (localhost).
 2. Configurar credenciales:
@@ -300,11 +361,14 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 ├── /M4  → checkpoint4_tomas_violini.json + Worker1 + Worker2
 ├── /M5  → checkpoint5_tomas_violini.json + Worker2 (M5 RAG) + RAG - Manual Consultora
 │          + Manual_Servicios_Consultora_v1 (.pdf y .md parseado) + PreEntrega_Modulo5_TomasViolini.pdf
-└── /M6  → checkpoint6_tomas_violini.json (Manager - Voz M6) + PreEntrega_Modulo6_TomasViolini.pdf
+├── /M6  → checkpoint6_tomas_violini.json (Manager - Voz M6) + PreEntrega_Modulo6_TomasViolini.pdf
+└── /M7  → PreEntrega_Modulo7_TomasViolini.pdf + M7_arquitectura_multiagente.png (módulo de diseño, sin .json)
 ```
 
 ---
 
 ## 🚧 Roadmap
 
-M7 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
+M8 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
+Candidatos a implementar a partir del diseño de M7: agente de seguimiento (A5), auditor de CRM (A6) y botones
+interactivos de escalado en Slack.
