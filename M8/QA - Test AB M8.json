@@ -1,0 +1,737 @@
+{
+  "name": "QA - Test A/B M8",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Test A/B — 5 casos × 2 arquitecturas = 10 corridas\n**A:** Worker2 RAG con gemini-3.5-flash-lite · **B:** el mismo Worker2 RAG con gpt-4o-mini.\nMismo prompt, misma tool, mismo manual, mismo **Juez** (gemini-2.5-flash, temp. 0).\nSe evalúa el **primer intento** (sin Self-Healing) para comparar la calidad pura de cada arquitectura.\nCada corrida queda logueada en Airtable `QA_Juez` con Origen = TEST_AB.\nEspera de 20 s entre casos por el límite de 5 RPM del plan free de Gemini.",
+        "height": 260,
+        "width": 760,
+        "color": 6
+      },
+      "id": "aa4ce2fa-ee66-491d-aa35-e2b2cefa9748",
+      "name": "Nota M8 - Test A/B",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        -360
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "d146876a-3111-4ccf-8382-6431622186c8",
+      "name": "Manual - Casos A/B",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appMxRy6AJoqDNuYO",
+          "mode": "list",
+          "cachedResultName": "Checkpoint1 - Calificacion Leads",
+          "cachedResultUrl": "https://airtable.com/appMxRy6AJoqDNuYO"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblcZEKH8VBI5CQPN",
+          "mode": "list",
+          "cachedResultName": "Memoria",
+          "cachedResultUrl": "https://airtable.com/appMxRy6AJoqDNuYO/tblcZEKH8VBI5CQPN"
+        },
+        "filterByFormula": "={Session_ID} = \"{{ $json.sessionId }}\"",
+        "options": {}
+      },
+      "id": "e88a7239-a3d1-4b8a-991f-21a60106638d",
+      "name": "Airtable - Leer Memoria",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "EE6FRu7vqNpl8G0U",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2eda9880-69b0-40ec-a6ae-ac3afc7c966b",
+              "name": "caso",
+              "value": "={{ $('Manual - Casos A/B').item.json.caso }}",
+              "type": "string"
+            },
+            {
+              "id": "7f34e766-dfbf-4eaa-bb4e-66bc35b0219f",
+              "name": "consulta",
+              "value": "={{ $('Manual - Casos A/B').item.json.consulta }}",
+              "type": "string"
+            },
+            {
+              "id": "892cd10e-411e-459c-ba56-895560bb6f01",
+              "name": "nombre",
+              "value": "={{ $('Manual - Casos A/B').item.json.nombre }}",
+              "type": "string"
+            },
+            {
+              "id": "8c454aa8-9c2f-4d12-b7aa-2fade56fc624",
+              "name": "empresa",
+              "value": "={{ $('Manual - Casos A/B').item.json.empresa }}",
+              "type": "string"
+            },
+            {
+              "id": "c8fbceae-4935-410a-bf2f-b8a4fd2bc553",
+              "name": "clasificacion",
+              "value": "={{ $('Manual - Casos A/B').item.json.clasificacion }}",
+              "type": "string"
+            },
+            {
+              "id": "84aaf649-5514-4fa8-aed2-5ab20c8225b4",
+              "name": "score",
+              "value": "={{ $('Manual - Casos A/B').item.json.score }}",
+              "type": "number"
+            },
+            {
+              "id": "a879a6ec-2de0-4be4-914d-2024e0976520",
+              "name": "sessionId",
+              "value": "={{ $('Manual - Casos A/B').item.json.sessionId }}",
+              "type": "string"
+            },
+            {
+              "id": "21c372cf-dbf0-4be6-b347-502bfd153d09",
+              "name": "email",
+              "value": "={{ $('Manual - Casos A/B').item.json.sessionId }}",
+              "type": "string"
+            },
+            {
+              "id": "4eadae0c-178b-4eef-94e1-987927936c71",
+              "name": "subject",
+              "value": "={{ $('Manual - Casos A/B').item.json.caso }}",
+              "type": "string"
+            },
+            {
+              "id": "5d3aa6cf-c943-49f6-946d-721ae8d7bb00",
+              "name": "origen",
+              "value": "TEST_AB",
+              "type": "string"
+            },
+            {
+              "id": "f0afc5a7-7845-4dd8-97da-71c38ea6abab",
+              "name": "contexto_airtable",
+              "value": "={{ $json.fields ? '[INICIO DE CONTEXTO COMPARTIDO] El usuario se llama ' + $json.fields.user_name + '. Estado actual del caso: ' + $json.fields['Estado del Caso'] + '. Resumen de la última conversación: ' + $json.fields['Resumen Consolidado'] + '. [FIN DEL CONTEXTO COMPARTIDO]' : '[INICIO DE CONTEXTO COMPARTIDO] Primer contacto con este usuario. No hay historial previo. [FIN DEL CONTEXTO COMPARTIDO]' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "527a7eca-363d-46ee-92ce-68b28c52f4a3",
+      "name": "Set - Caso + Contexto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "ecc05b01-8f1b-4501-adfb-55fc90072af2",
+      "name": "Loop - Un caso por vez",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0bfed66e-b8d9-4ca3-982f-357900f18224",
+      "name": "Fin del test",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({ ...$json, arquitectura: 'A', intento: 1, critica: '', t0_ms: Date.now() }) }}",
+        "options": {}
+      },
+      "id": "13799e56-701c-484c-87ff-ccc6a5faafb8",
+      "name": "Set - Arq A",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G3wdK9mXzgjO1QAM",
+          "mode": "list",
+          "cachedResultName": "Worker2 - Redactar Respuesta (M8 · Arq A Gemini)",
+          "cachedResultUrl": "/workflow/G3wdK9mXzgjO1QAM"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nombre": "={{ $json.nombre }}",
+            "empresa": "={{ $json.empresa }}",
+            "score": "={{ $json.score }}",
+            "clasificacion": "={{ $json.clasificacion }}",
+            "consulta": "={{ $json.consulta }}",
+            "intento": "={{ $json.intento }}",
+            "critica": "={{ $json.critica }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "empresa",
+              "displayName": "empresa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            },
+            {
+              "id": "clasificacion",
+              "displayName": "clasificacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "consulta",
+              "displayName": "consulta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "intento",
+              "displayName": "intento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            },
+            {
+              "id": "critica",
+              "displayName": "critica",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "d13c4752-b42f-42d9-98cc-87e9fe33ed63",
+      "name": "Execute Worker2 A",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        120
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({ ...$('Set - Arq A').item.json, modelo_agente: ($json.data || {}).modelo || 'gemini-3.5-flash-lite', asunto: ($json.data || {}).asunto || '(sin respuesta)', cuerpo: ($json.data || {}).cuerpo || '[ERROR TÉCNICO] El agente no devolvió un borrador válido (' + ($json.message || 'salida vacía o JSON inválido') + ').', fuentes: ($json.data || {}).fuentes || [], sin_dato: ($json.data || {}).sin_dato === true }) }}",
+        "options": {}
+      },
+      "id": "1074cc21-28db-468d-a978-33be0e7adde7",
+      "name": "Set - Paquete Juez A",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1eltWhcaenytCdmy",
+          "mode": "list",
+          "cachedResultName": "Juez QA - Supervisor (M8)",
+          "cachedResultUrl": "/workflow/1eltWhcaenytCdmy"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "6d97cf8d-8250-49b3-ab7f-380c4ced7c87",
+      "name": "Execute Juez QA A",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({ ...$('Set - Arq A').item.json, arquitectura: 'B', intento: 1, critica: '', t0_ms: Date.now() }) }}",
+        "options": {}
+      },
+      "id": "8fe5ea7c-f6ca-4d5e-95cd-7845eeb6e390",
+      "name": "Set - Arq B",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "tkoFU0AYvnq4ySLa",
+          "mode": "list",
+          "cachedResultName": "Worker2 - Redactar Respuesta (M8 · Arq B GPT)",
+          "cachedResultUrl": "/workflow/tkoFU0AYvnq4ySLa"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nombre": "={{ $json.nombre }}",
+            "empresa": "={{ $json.empresa }}",
+            "score": "={{ $json.score }}",
+            "clasificacion": "={{ $json.clasificacion }}",
+            "consulta": "={{ $json.consulta }}",
+            "intento": "={{ $json.intento }}",
+            "critica": "={{ $json.critica }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "empresa",
+              "displayName": "empresa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            },
+            {
+              "id": "clasificacion",
+              "displayName": "clasificacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "consulta",
+              "displayName": "consulta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "intento",
+              "displayName": "intento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            },
+            {
+              "id": "critica",
+              "displayName": "critica",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "81f63cb0-5f34-4695-b640-56e68ecef068",
+      "name": "Execute Worker2 B",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        120
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({ ...$('Set - Arq B').item.json, modelo_agente: ($json.data || {}).modelo || 'gpt-4o-mini', asunto: ($json.data || {}).asunto || '(sin respuesta)', cuerpo: ($json.data || {}).cuerpo || '[ERROR TÉCNICO] El agente no devolvió un borrador válido (' + ($json.message || 'salida vacía o JSON inválido') + ').', fuentes: ($json.data || {}).fuentes || [], sin_dato: ($json.data || {}).sin_dato === true }) }}",
+        "options": {}
+      },
+      "id": "9aba3d04-2778-4e46-9d4d-860f8894fe19",
+      "name": "Set - Paquete Juez B",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2200,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1eltWhcaenytCdmy",
+          "mode": "list",
+          "cachedResultName": "Juez QA - Supervisor (M8)",
+          "cachedResultUrl": "/workflow/1eltWhcaenytCdmy"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "82e08cc0-469b-41d3-b85c-9c4803c09f59",
+      "name": "Execute Juez QA B",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "id": "666ca9d6-7286-42af-9a3a-3e5ce0c5ab22",
+      "name": "Wait - 20 s (rate limit)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        120
+      ],
+      "webhookId": "21ddefdf-4590-403c-b958-3045c882bc6e"
+    }
+  ],
+  "connections": {
+    "Manual - Casos A/B": {
+      "main": [
+        [
+          {
+            "node": "Airtable - Leer Memoria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable - Leer Memoria": {
+      "main": [
+        [
+          {
+            "node": "Set - Caso + Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Caso + Contexto": {
+      "main": [
+        [
+          {
+            "node": "Loop - Un caso por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop - Un caso por vez": {
+      "main": [
+        [
+          {
+            "node": "Fin del test",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set - Arq A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Arq A": {
+      "main": [
+        [
+          {
+            "node": "Execute Worker2 A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Worker2 A": {
+      "main": [
+        [
+          {
+            "node": "Set - Paquete Juez A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Paquete Juez A": {
+      "main": [
+        [
+          {
+            "node": "Execute Juez QA A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Juez QA A": {
+      "main": [
+        [
+          {
+            "node": "Set - Arq B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Arq B": {
+      "main": [
+        [
+          {
+            "node": "Execute Worker2 B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Worker2 B": {
+      "main": [
+        [
+          {
+            "node": "Set - Paquete Juez B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Paquete Juez B": {
+      "main": [
+        [
+          {
+            "node": "Execute Juez QA B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Juez QA B": {
+      "main": [
+        [
+          {
+            "node": "Wait - 20 s (rate limit)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait - 20 s (rate limit)": {
+      "main": [
+        [
+          {
+            "node": "Loop - Un caso por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Manual - Casos A/B": [
+      {
+        "json": {
+          "caso": "P1 Precio",
+          "consulta": "Tengo una agencia de usados en City Bell, ¿cuánto me sale arrancar con lo del WhatsApp para los vendedores?",
+          "nombre": "Lead de prueba",
+          "empresa": "Agencia de prueba",
+          "clasificacion": "CALIENTE",
+          "score": 80,
+          "sessionId": "circuit.model888@gmail.com"
+        }
+      },
+      {
+        "json": {
+          "caso": "P2 Plazo",
+          "consulta": "Tenemos una concesionaria con 6 vendedores. ¿Y en cuánto tiempo lo tienen andando más o menos?",
+          "nombre": "Lead de prueba",
+          "empresa": "Agencia de prueba",
+          "clasificacion": "TIBIO",
+          "score": 60,
+          "sessionId": "circuit.model888@gmail.com"
+        }
+      },
+      {
+        "json": {
+          "caso": "P3 Integración",
+          "consulta": "Laburamos con Pipedrive en la concesionaria, ¿me lo enganchan con lo de las consultas?",
+          "nombre": "Lead de prueba",
+          "empresa": "Agencia de prueba",
+          "clasificacion": "TIBIO",
+          "score": 55,
+          "sessionId": "circuit.model888@gmail.com"
+        }
+      },
+      {
+        "json": {
+          "caso": "P4 No sé",
+          "consulta": "¿Ustedes también me arman la página web de la agencia?",
+          "nombre": "Lead de prueba",
+          "empresa": "Agencia de prueba",
+          "clasificacion": "TIBIO",
+          "score": 45,
+          "sessionId": "circuit.model888@gmail.com"
+        }
+      },
+      {
+        "json": {
+          "caso": "P5 Pausa",
+          "consulta": "Si en enero quiero frenar todo un par de meses por vacaciones, ¿qué onda con el abono?",
+          "nombre": "Lead de prueba",
+          "empresa": "Agencia de prueba",
+          "clasificacion": "TIBIO",
+          "score": 50,
+          "sessionId": "circuit.model888@gmail.com"
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": []
+}
