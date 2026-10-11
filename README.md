@@ -20,6 +20,7 @@ orientada a **PyMEs y concesionarias de La Plata**. El proyecto crece módulo a 
 - **LlamaParse (LlamaCloud)** para parsear el documento maestro + **Simple Vector Store** de n8n — desde M5
 - **Telegram** (bot oficial) como canal de voz + **OpenAI Whisper** (STT) + **ElevenLabs** (TTS) — desde M6
 - **ngrok** como túnel HTTPS para exponer los webhooks del n8n local — desde M6
+- **Gemini 2.5 Flash** como Juez de calidad (AI-as-a-Judge) + **OpenAI gpt-4o-mini** como arquitectura alternativa del test A/B — desde M8
 
 ---
 
@@ -232,7 +233,7 @@ comparaciones, propuestas y datos sensibles por texto o humano.
 
 Latencia ≈ 15 s de punta a punta (Whisper 2,7 s · agente + RAG 4,7 s · ElevenLabs 2,1 s · Telegram 5,3 s). Respuestas de 95–110 caracteres.
 
-### M7 — Diseño arquitectónico de un sistema agéntico vertical (Sales Ops) ✅ (entregable actual)
+### M7 — Diseño arquitectónico de un sistema agéntico vertical (Sales Ops) ✅
 Módulo de **diseño** (100 % no-code, sin workflows nuevos): especializa el agente de M1–M6 para la vertical
 **Sales Ops** (captación, calificación y seguimiento de oportunidades B2B) y lo documenta como un informe de
 consultoría. 📄 [`PreEntrega_Modulo7_TomasViolini.pdf`](./M7/PreEntrega_Modulo7_TomasViolini.pdf)
@@ -293,6 +294,67 @@ Reglas previas: señal crítica → escalado; sin necesidad concreta → fallbac
 Validado contra la prueba 1 de M4 (**92/100, CALIENTE**). Se suma un scorecard de calidad del borrador
 (5 controles, aprobado con ≥ 4/5 y cita de fuente obligatoria) y una versión de portafolio anonimizada.
 
+### M8 — QA automatizado con AI-as-a-Judge ✅ (entregable actual)
+Capa de **supervisión** sobre el agente: antes de que un borrador llegue a HubSpot o a Gmail, un **Juez LLM**
+lo compara con el manual (mismo RAG de M5), le asigna una **exactitud factual de 1 a 5** y decide entre tres rutas.
+Se parte del Manager de M5 sin rehacerlo: el Juez se inserta entre el Worker2 y las salidas reales.
+📄 [`Checkpoint_Modulo8_Violini_Tomas.pdf`](./M8/Checkpoint_Modulo8_Violini_Tomas.pdf)
+
+<img src="./M8/M8_diagrama_supervisor.png" alt="Flujo de supervisión M8" width="420">
+
+**Sub-workflow `Juez QA - Supervisor (M8)`:**
+```
+Entrada (todo el ítem) → RAG - Evidencia Manual → Set - Objeto Juez
+   {query_usuario, contexto_airtable, respuesta_agente, evidencia_manual}
+      → Basic LLM Chain (gemini-2.5-flash · temperatura 0) + Structured Output Parser (JSON Schema)
+            ├─ JSON válido   → Set - Veredicto Juez
+            └─ error/inválido → Set - Veredicto Fail-Closed (RECHAZADO · error_tecnico)
+      → Airtable - Log Evaluación (tabla QA_Juez) → Salida
+```
+
+**Salida forzada del Juez (JSON Schema):** `exactitud_factual` (entero 1–5) · `estado_veredicto`
+(`ACEPTADO` | `CORREGIR` | `RECHAZADO`) · `categoria_error` (enum de 9 valores) · `critica` (≤ 400 caracteres).
+Nunca responde en texto libre: si el JSON no valida, el borrador va a revisión humana.
+
+**Rúbrica:** 5 = datos exactos y con fuente (o "No sé" bien aplicado) · 4 = omisión menor · 3 = respuesta parcial ·
+2 = dato comercial incorrecto · 1 = dato inventado o contradice el manual. **Riesgo de política** (descuentos o
+condiciones fuera del manual, temas legales, reembolsos, instrucciones del correo obedecidas) → `RECHAZADO` con cualquier nota.
+
+**Switch de 3 rutas en el Manager (`Manager - Supervisor QA M8`):**
+
+| Ruta | Condición | Acción | Límite |
+|---|---|---|---|
+| ✅ Aceptar | `ACEPTADO` y exactitud ≥ 4 | HubSpot → borrador en Gmail → Slack con la nota del Juez | Gmail sigue sin nodo Send (HITL de M4) |
+| 🔁 Corregir (Self-Healing) | `CORREGIR` y `intento < 3` | La crítica vuelve al Worker2 como bloque `[CORRECCIÓN DEL SUPERVISOR QA]` y el nuevo borrador pasa otra vez por el Juez | Máx. 2 correcciones; después escala |
+| 🛑 Escalar (HITL) | `RECHAZADO`, correcciones agotadas o Juez caído | Slack con botones **Aprobar / Editar** → `Wait` (webhook) → decisión registrada en Airtable | Tope de 4 h; sin respuesta → aviso a dirección |
+
+Los botones son de tipo URL y apuntan a la `resumeUrl` de cada ejecución (no requieren *Interactivity* ni scopes
+extra: la app de Slack sigue solo con `chat:write`).
+
+**Test A/B (10/10/2026) — 5 consultas ciegas de M5 × 2 arquitecturas, primer intento, mismo Juez:**
+
+| | Arquitectura A — Worker2 RAG con `gemini-3.5-flash-lite` | Arquitectura B — mismo Worker2 con `gpt-4o-mini` |
+|---|---|---|
+| Exactitud media (1–5) | **4,6** | 4,2 |
+| Aceptados al primer intento | 5/5 | 4/5 (P4 rechazado) |
+| Error más relevante | omisiones menores (exactitud 4) | afirmó "no ofrecemos ese servicio" en vez de aplicar "No sé" |
+| Latencia media (agente + Juez) | 13,7 s | 12,2 s |
+| Costo por corrida (agente + Juez) | USD 0,00215 | USD 0,00151 |
+| **Proyección a 1.000 ejecuciones** | **USD 2,15** | USD 1,51 de IA + ≈ USD 60 de revisión humana (20 % escalado) |
+
+**Recomendación:** mantener **A** en producción. B ahorra un 30 % en tokens, pero su error (afirmar algo que el
+manual no dice) se convierte en escalados humanos que cuestan ~30 veces ese ahorro.
+
+**Prueba de escalado:** un lead pidió 30 % de descuento si firmaba ese día y el borrador lo concedía → el Juez lo
+calificó `RECHAZADO` · exactitud 1 · `riesgo_politica`; la alerta llegó a `#leads-ops` con los botones, la ejecución
+quedó en pausa y al aprobar se reanudó y registró la decisión humana.
+
+> **Notas técnicas:**
+> - El Juez usa un modelo distinto de los comparados para que ningún modelo se califique a sí mismo.
+> - Los tokens de Gemini dentro de un AI Agent los reporta n8n como estimación; el costo del Juez no incluye sus tokens de razonamiento.
+> - Con el vector store vacío (tras reiniciar n8n sin re-ingestar), gpt-4o-mini entra en bucle de llamadas a la tool hasta agotar iteraciones: la ingesta del manual es parte del arranque.
+> - La `resumeUrl` del Wait ya trae `?signature=…`: el parámetro de la decisión se concatena con `&`.
+
 ---
 
 ## 🗃️ Esquema de la base de memoria (tabla `Memoria`)
@@ -309,9 +371,31 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 | `Fecha de Actualización` | Date (con hora) | Timestamp de última escritura |
 | `msg_count` | Number (entero) | Contador de mensajes; dispara summarization al llegar a 5 y se resetea a 0 |
 
+### Tabla de auditoría del Juez (`QA_Juez`) — desde M8
+
+Misma base. Una fila por cada evaluación del Juez y otra por cada decisión humana.
+
+| Campo | Tipo Airtable | Rol |
+|---|---|---|
+| `Caso` | Single line text (primario) | Asunto del mail o caso de prueba |
+| `Fecha` | Date (con hora) | Momento del registro |
+| `Evento` | Single select | `EVALUACION` · `DECISION_HUMANA` |
+| `Origen` | Single select | `PRODUCCION` · `TEST_AB` |
+| `Session_ID` | Single line text | Email del lead |
+| `Arquitectura` / `Modelo` | Single select / texto | `A` (gemini-3.5-flash-lite) · `B` (gpt-4o-mini) |
+| `Intento` | Number | 1 a 3 (Self-Healing) |
+| `Exactitud` | Number | 1 a 5 |
+| `Veredicto` | Single select | `ACEPTADO` · `CORREGIR` · `RECHAZADO` |
+| `Categoria_Error` | Single select | `ninguno`, `precio_incorrecto`, `plazo_incorrecto`, `dato_inventado`, `regla_no_se_mal_aplicada`, `consulta_no_respondida`, `sin_fuente`, `tono_inadecuado`, `riesgo_politica`, `error_tecnico` |
+| `Critica` | Long text | Corrección del Juez |
+| `Decision_Humana` | Single select | `aprobar` · `editar` · `timeout` |
+| `Query` / `Respuesta` / `Fuentes` | Textos | Consulta, borrador evaluado y secciones citadas |
+| `Latencia_s` / `Tokens_In` / `Tokens_Out` | Number | Métricas por corrida |
+| `Costo_USD` | Fórmula | Costo del agente por corrida según la arquitectura (precios de lista por 1M tokens) |
+
 ---
 
-## ▶️ Cómo correr (versión M6 — M7 no agrega workflows)
+## ▶️ Cómo correr (versión M8)
 
 1. Levantar n8n con Docker (localhost).
 2. Configurar credenciales:
@@ -348,6 +432,18 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 11. Importar `/M6/checkpoint6_tomas_violini.json`, reasignar credenciales, seleccionar el workflow RAG en
     la tool `manual_consultora` y **publicar**. Mandarle una nota de voz al bot.
 
+**Supervisor QA (M8):**
+
+12. Crear en Airtable la tabla `QA_Juez` (ver esquema arriba).
+13. Importar y **publicar**, en este orden: `/M8/Juez QA - Supervisor (M8).json`,
+    `/M8/Worker2 - Redactar Respuesta (M8 Arq A Gemini).json` y `/M8/Worker2 - Redactar Respuesta (M8 Arq B GPT).json`
+    (en los Workers, seleccionar el workflow RAG en la tool `manual_consultora`; el B necesita la credencial de OpenAI).
+14. Importar `/M8/checkpoint8_tomas_violini.json` y `/M8/QA - Test AB M8.json`; en cada `Execute Workflow`
+    volver a seleccionar el sub-workflow correspondiente (Worker1, Worker2 A/B y Juez QA) y reasignar credenciales.
+15. Correr la ingesta del manual y después `QA - Test A/B M8` (trae los 5 casos fijados; tarda ≈ 4 min).
+16. Para producción, activar `Manager - Supervisor QA M8` y **desactivar el Manager M5** (no pueden convivir dos Gmail Trigger).
+    Los botones de Slack necesitan el túnel de ngrok activo.
+
 ---
 
 ## 📂 Estructura del repo
@@ -362,13 +458,16 @@ Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
 ├── /M5  → checkpoint5_tomas_violini.json + Worker2 (M5 RAG) + RAG - Manual Consultora
 │          + Manual_Servicios_Consultora_v1 (.pdf y .md parseado) + PreEntrega_Modulo5_TomasViolini.pdf
 ├── /M6  → checkpoint6_tomas_violini.json (Manager - Voz M6) + PreEntrega_Modulo6_TomasViolini.pdf
-└── /M7  → PreEntrega_Modulo7_TomasViolini.pdf + M7_arquitectura_multiagente.png (módulo de diseño, sin .json)
+├── /M7  → PreEntrega_Modulo7_TomasViolini.pdf + M7_arquitectura_multiagente.png (módulo de diseño, sin .json)
+└── /M8  → checkpoint8_tomas_violini.json (Manager - Supervisor QA M8) + Juez QA - Supervisor (M8)
+           + Worker2 (M8 Arq A Gemini) + Worker2 (M8 Arq B GPT) + QA - Test AB M8
+           + M8_diagrama_supervisor.png + Checkpoint_Modulo8_Violini_Tomas.pdf
 ```
 
 ---
 
 ## 🚧 Roadmap
 
-M8 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
-Candidatos a implementar a partir del diseño de M7: agente de seguimiento (A5), auditor de CRM (A6) y botones
-interactivos de escalado en Slack.
+M9 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
+Candidatos a implementar a partir del diseño de M7: agente de seguimiento (A5), auditor de CRM (A6), campo
+`senal_critica` en el Router y botones de Slack con *Interactivity* y verificación de firma (M8 usa botones tipo URL).
