@@ -294,7 +294,7 @@ Reglas previas: señal crítica → escalado; sin necesidad concreta → fallbac
 Validado contra la prueba 1 de M4 (**92/100, CALIENTE**). Se suma un scorecard de calidad del borrador
 (5 controles, aprobado con ≥ 4/5 y cita de fuente obligatoria) y una versión de portafolio anonimizada.
 
-### M8 — QA automatizado con AI-as-a-Judge ✅ (entregable actual)
+### M8 — QA automatizado con AI-as-a-Judge ✅
 Capa de **supervisión** sobre el agente: antes de que un borrador llegue a HubSpot o a Gmail, un **Juez LLM**
 lo compara con el manual (mismo RAG de M5), le asigna una **exactitud factual de 1 a 5** y decide entre tres rutas.
 Se parte del Manager de M5 sin rehacerlo: el Juez se inserta entre el Worker2 y las salidas reales.
@@ -357,6 +357,33 @@ quedó en pausa y al aprobar se reanudó y registró la decisión humana.
 
 ---
 
+### M9 — Gobernanza, economía del token y trazabilidad ✅ (entregable actual)
+Plan de gobernanza del sistema del M8 (finanzas, logs y compliance) y **traceId** cableado en n8n.
+Entregable: `/M9/PreEntrega_Modulo9_TomasViolini.pdf`.
+
+**Finanzas**
+- Costo del pipeline completo (Router + Worker1 + memoria + Worker2 + Juez + reintentos): **USD 4,29 cada 1.000 mails**.
+- KPIs: resolución autónoma **88 %** (meta ≥ 80 %) · tiempo ahorrado **8,7 h/mes** · satisfacción (borradores aprobados sin editar).
+- ROI contra el baseline manual (30 min/lead, 20 leads/mes, USD 6/h): ahorro USD 52,2/mes vs TCO USD 23,1/mes → **ROI mensual 126 %**.
+- Prompt Caching de Anthropic (Claude Haiku 5.5) analizado: con caché de 1 h el costo de Worker2 + Juez baja un 63 %. No implementado todavía.
+- Spend caps por llave: DEV USD 5/mes · PROD USD 10/mes.
+
+**Trazabilidad (traceId)**
+- Se genera una vez en `Entrada Normalizada` (`trc-AAAAMMDD-HHmmss-xxxxxx`) y viaja como input fijo a Worker1, Worker2,
+  la tool `manual_consultora` (valor fijo, no `$fromAI`), el Juez QA y los mensajes de Slack. Sin nodos Code.
+- `QA_Juez` suma `traceId`, `nodeName`, `systemPromptSnapshot`, `confidenceScore`, `Autonomo` y `Log_JSON`.
+- Prueba forzada del 12/10/2026: precio alterado antes del Juez → 3 × `CORREGIR` → escalado a Slack → `aprobar`,
+  los 4 eventos bajo el mismo traceId (`trc-20261012-203814-oiev8d`).
+
+**Ética y compliance**
+- Riesgos cubiertos: prompt injection, alucinación de precios, sesgo en la calificación y bucles de gasto.
+- Worker1 suma una cláusula de objetividad (ignora nombre, género y forma de escribir).
+- Privacidad: el cupo gratuito de Gemini permite que Google use los datos → para producción, cupo pago de la API.
+
+![traceId](M9/M9_traceId_flujo.png)
+
+---
+
 ## 🗃️ Esquema de la base de memoria (tabla `Memoria`)
 
 Base **Checkpoint1 - Calificacion Leads** (misma base que la tabla `Leads`).
@@ -392,10 +419,16 @@ Misma base. Una fila por cada evaluación del Juez y otra por cada decisión hum
 | `Query` / `Respuesta` / `Fuentes` | Textos | Consulta, borrador evaluado y secciones citadas |
 | `Latencia_s` / `Tokens_In` / `Tokens_Out` | Number | Métricas por corrida |
 | `Costo_USD` | Fórmula | Costo del agente por corrida según la arquitectura (precios de lista por 1M tokens) |
+| `traceId` | Single line text | (M9) ID de correlación del mail entrante |
+| `nodeName` | Single line text | (M9) Nodo de n8n que generó el evento |
+| `systemPromptSnapshot` | Single line text | (M9) Versión de los prompts (ej. `JUEZ-v1.0 · W2-RAG-A-v1.0`) |
+| `confidenceScore` | Fórmula | (M9) Exactitud ÷ 5 |
+| `Autonomo` | Fórmula | (M9) 1 si el Juez aceptó al primer intento (KPI de resolución autónoma) |
+| `Log_JSON` | Long text | (M9) Evento completo en JSON (timestamp, nodeName, toolOutput, systemPromptSnapshot, confidenceScore) |
 
 ---
 
-## ▶️ Cómo correr (versión M8)
+## ▶️ Cómo correr (versión M9)
 
 1. Levantar n8n con Docker (localhost).
 2. Configurar credenciales:
@@ -444,6 +477,14 @@ Misma base. Una fila por cada evaluación del Juez y otra por cada decisión hum
 16. Para producción, activar `Manager - Supervisor QA M8` y **desactivar el Manager M5** (no pueden convivir dos Gmail Trigger).
     Los botones de Slack necesitan el túnel de ngrok activo.
 
+**Trazabilidad (M9):**
+
+17. En `QA_Juez` agregar las columnas M9 (ver esquema arriba).
+18. Importar y publicar las versiones de `/M9` (`Worker1`, `RAG`, `Worker2 M8 Arq A`, `Juez QA`) e importar
+    `/M9/checkpoint9_tomas_violini.json`. Volver a seleccionar los sub-workflows y reasignar credenciales.
+19. Si la credencial de Gmail usa la URL de ngrok como redirect, agregarla en Google Cloud → Credenciales →
+    URIs de redireccionamiento, y reconectar desde el dominio de ngrok (no desde localhost).
+
 ---
 
 ## 📂 Estructura del repo
@@ -459,15 +500,17 @@ Misma base. Una fila por cada evaluación del Juez y otra por cada decisión hum
 │          + Manual_Servicios_Consultora_v1 (.pdf y .md parseado) + PreEntrega_Modulo5_TomasViolini.pdf
 ├── /M6  → checkpoint6_tomas_violini.json (Manager - Voz M6) + PreEntrega_Modulo6_TomasViolini.pdf
 ├── /M7  → PreEntrega_Modulo7_TomasViolini.pdf + M7_arquitectura_multiagente.png (módulo de diseño, sin .json)
-└── /M8  → checkpoint8_tomas_violini.json (Manager - Supervisor QA M8) + Juez QA - Supervisor (M8)
+├── /M8  → checkpoint8_tomas_violini.json (Manager - Supervisor QA M8) + Juez QA - Supervisor (M8)
            + Worker2 (M8 Arq A Gemini) + Worker2 (M8 Arq B GPT) + QA - Test AB M8
            + M8_diagrama_supervisor.png + Checkpoint_Modulo8_Violini_Tomas.pdf
+└── /M9  → checkpoint9_tomas_violini.json (Manager con traceId) + Worker1 + RAG + Worker2 (M8 Arq A) + Juez QA
+           (versiones M9) + M9_traceId_flujo.png + PreEntrega_Modulo9_TomasViolini.pdf
 ```
 
 ---
 
 ## 🚧 Roadmap
 
-M9 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
+M10 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
 Candidatos a implementar a partir del diseño de M7: agente de seguimiento (A5), auditor de CRM (A6), campo
 `senal_critica` en el Router y botones de Slack con *Interactivity* y verificación de firma (M8 usa botones tipo URL).
