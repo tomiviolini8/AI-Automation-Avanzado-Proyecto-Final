@@ -357,7 +357,7 @@ quedó en pausa y al aprobar se reanudó y registró la decisión humana.
 
 ---
 
-### M9 — Gobernanza, economía del token y trazabilidad ✅ (entregable actual)
+### M9 — Gobernanza, economía del token y trazabilidad ✅
 Plan de gobernanza del sistema del M8 (finanzas, logs y compliance) y **traceId** cableado en n8n.
 Entregable: `/M9/PreEntrega_Modulo9_TomasViolini.pdf`.
 
@@ -381,6 +381,54 @@ Entregable: `/M9/PreEntrega_Modulo9_TomasViolini.pdf`.
 - Privacidad: el cupo gratuito de Gemini permite que Google use los datos → para producción, cupo pago de la API.
 
 ![traceId](M9/M9_traceId_flujo.png)
+
+---
+
+### M10 — Brochure técnico-comercial y defensa ante comité ✅ (entregable actual)
+Módulo de **propuesta comercial**: no se tocó n8n. El sistema construido en M1–M9 se empaqueta como el producto
+**"Agente Comercial de Leads"**, explicado en lenguaje de negocio para un comité no técnico.
+📄 [`PreEntrega_Modulo10_TomasViolini.pdf`](./M10/PreEntrega_Modulo10_TomasViolini.pdf)
+
+<img src="./M10/M10_arquitectura_valor.png" alt="Arquitectura de valor M10" width="620">
+
+**Narrativa y arquitectura de valor**
+- Problema: 30 min por consulta, primera respuesta ≈ 24 h, cierre 15 %. Promesa: respuesta < 2 h, 10 → 1,3 h/mes, meta 20 % de cierre.
+- Caso de referencia: el área comercial de la propia consultora (20 consultas/mes), donde el sistema ya funciona.
+- Diagrama redibujado sin jerga: Coordinador (Manager) + 4 especialistas (Router, Worker1, Worker2 RAG, Juez QA) +
+  herramientas (Memoria/Airtable, HubSpot, Gmail borradores, Slack, registro de auditoría con traceId). A5 y A6 del M7 en Fase 3.
+
+**Business case (números del M9, sin recalcular)**
+
+| | Solo horas | Con +1 cierre/mes |
+|---|---|---|
+| Beneficio mensual | USD 52,2 | USD 52,2 + USD 1.200 |
+| Costo mensual | USD 23,1 (TCO) | USD 23,1 + USD 120 (success fee) |
+| ROI mensual | 126 % | 775 % |
+| Payback de la configuración (USD 360) | ≈ 12 meses | < 1 mes |
+
+**Roadmap por fases (semáforo del M7):** Fase 0 modo sombra (sem. 1–2) → Fase 1 solo lectura (sem. 3–4) →
+Fase 2 escritura controlada con HITL (meses 2–3) → Fase 3 autonomía supervisada (mes 4+). El envío de mails sigue siendo
+humano en todas las fases y lo "rojo" siempre escala. Criterios de salida medibles y vuelta atrás ante un error de precio o un duplicado.
+
+**Pricing híbrido**
+
+| Componente | Precio | Qué cubre |
+|---|---|---|
+| Fee de configuración | USD 360 único | 60 h: integraciones con permisos mínimos, manual del cliente, grilla de calificación, Fases 0 y 1 |
+| Retainer | USD 23/mes | TCO sin margen: servidor, IA hasta 300 consultas/mes, 2 h de soporte (ajuste de instrucciones, base de conocimiento, modelos, métricas) |
+| Success fee | USD 120 por conversión | Solo conversiones atribuidas **por encima de la línea base** medida en Fase 0; tope 3/mes |
+
+- **KPI de facturación:** contacto con origen "Agente" que pasa a etapa *Cliente* en HubSpot.
+- **Ventana de conversión:** 30 días corridos desde la última interacción del agente.
+- **Trazabilidad (diseño):** propiedades de contacto en HubSpot escritas solo por el Manager — origen del lead, traceId,
+  primera/última interacción del agente, calificación, decisión humana y versión de instrucciones. Conciliación mensual
+  contra `QA_Juez` por traceId. Hoy el traceId vive en Airtable; las propiedades de HubSpot quedan para implementar.
+
+**Plan a 30 días:** kickoff → accesos mínimos → manual y propiedades CRM → Fase 0 → revisión → Fase 1 → comité de
+decisión (día 26) → inicio de Fase 2 y primera conciliación (día 30). Cada hito con responsable por rol.
+
+**Defensa ante comité:** "ya lo hace mi CRM", "¿y si alucina y borra datos?" y "es caro para el ahorro" respondidas
+con guardrails (sin borrado, sin envío, "No sé", Juez), despliegue por fases y números.
 
 ---
 
@@ -503,14 +551,15 @@ Misma base. Una fila por cada evaluación del Juez y otra por cada decisión hum
 ├── /M8  → checkpoint8_tomas_violini.json (Manager - Supervisor QA M8) + Juez QA - Supervisor (M8)
            + Worker2 (M8 Arq A Gemini) + Worker2 (M8 Arq B GPT) + QA - Test AB M8
            + M8_diagrama_supervisor.png + Checkpoint_Modulo8_Violini_Tomas.pdf
-└── /M9  → checkpoint9_tomas_violini.json (Manager con traceId) + Worker1 + RAG + Worker2 (M8 Arq A) + Juez QA
+├── /M9  → checkpoint9_tomas_violini.json (Manager con traceId) + Worker1 + RAG + Worker2 (M8 Arq A) + Juez QA
            (versiones M9) + M9_traceId_flujo.png + PreEntrega_Modulo9_TomasViolini.pdf
+└── /M10 → PreEntrega_Modulo10_TomasViolini.pdf + M10_arquitectura_valor.png (módulo comercial, sin .json)
 ```
 
 ---
 
 ## 🚧 Roadmap
 
-M10 → M11 (en curso). Mismo caso de negocio, mismo repo, extendiendo el workflow.
+M11 — Proyecto Final Integrador (próximo): defensa del sistema con el brochure del M10. Mismo caso de negocio, mismo repo, extendiendo el workflow.
 Candidatos a implementar a partir del diseño de M7: agente de seguimiento (A5), auditor de CRM (A6), campo
 `senal_critica` en el Router y botones de Slack con *Interactivity* y verificación de firma (M8 usa botones tipo URL).
