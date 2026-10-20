@@ -384,7 +384,7 @@ Entregable: `/M9/PreEntrega_Modulo9_TomasViolini.pdf`.
 
 ---
 
-### M10 — Brochure técnico-comercial y defensa ante comité ✅ (entregable actual)
+### M10 — Brochure técnico-comercial y defensa ante comité ✅
 Módulo de **propuesta comercial**: no se tocó n8n. El sistema construido en M1–M9 se empaqueta como el producto
 **"Agente Comercial de Leads"**, explicado en lenguaje de negocio para un comité no técnico.
 📄 [`PreEntrega_Modulo10_TomasViolini.pdf`](./M10/PreEntrega_Modulo10_TomasViolini.pdf)
@@ -429,6 +429,59 @@ decisión (día 26) → inicio de Fase 2 y primera conciliación (día 30). Cada
 
 **Defensa ante comité:** "ya lo hace mi CRM", "¿y si alucina y borra datos?" y "es caro para el ahorro" respondidas
 con guardrails (sin borrado, sin envío, "No sé", Juez), despliegue por fases y números.
+
+---
+
+### M11 — Proyecto Final Integrador: sistema agéntico asincrónico y supervisado ✅ (entregable actual)
+Ensamblado final de M1–M10 en un sistema **asincrónico, idempotente y con manejo de fallas**, más la DMSA para el comité.
+📄 [`Violini_Tomas_ProyectoFinal_AI_Experto.pdf`](./M11/Violini_Tomas_ProyectoFinal_AI_Experto.pdf)
+
+<img src="./M11/M11_arquitectura.png" alt="Arquitectura M11" width="620">
+
+**Workflows nuevos (sobre el Manager M9, sin rehacer nada)**
+
+| Workflow | Rol |
+|---|---|
+| `Entrada - Webhook Leads M11` | `POST /webhook/lead-m11` con header `X-API-Key` → valida → **responde 202 al instante** (con `traceId`) → llama al Manager **sin esperar** |
+| `Entrada - Gmail Leads M11` | Gmail Trigger → anti auto-reply → mismo formato de datos → Manager sin esperar |
+| `Manager - Proyecto Final M11` (`checkpoint11_tomas_violini.json`) | Copia del Manager M9 con trigger de sub-workflow, **idempotencia**, estados y ramas de error |
+| `Error Handler - Alertas M11` | Error Trigger → Slack + registro. Configurado como *Error workflow* del Manager y de las entradas |
+
+**Qué se agregó**
+- **Asincronía:** el webhook responde 202 en ~0,4 s y el procesamiento (≈ 25 s) sigue en segundo plano. 400 si faltan datos, 403 sin clave.
+- **Idempotencia:** tabla Airtable `Idempotencia` (`idempotencyKey`, `traceId`, `canal`, `email`, `asunto`, `estado`, `detalle`, `creado`).
+  Clave = `idempotency_key` del body / header `Idempotency-Key` / hash SHA-256 de email+asunto+mensaje (webhook) o `gmail-<id>` (mail).
+  Si la clave existe → `Stop - Duplicado ignorado`. Estados: EN_PROCESO → COMPLETADO / FALLBACK_HUMANO / ESCALADO_HITL / ESCALADO_DIRECCION / ERROR_API.
+- **Fallas:** HubSpot, Gmail y Slack con 3 reintentos; si siguen caídos → `Set - Falla API Externa` → Slack + estado ERROR_API (sin borrador ni registro parcial).
+  Guard `IF - ¿Falló HubSpot?` porque la búsqueda usa *Always Output Data*. Router con reintentos ante 429.
+- **Juez obligatorio antes del CRM:** HubSpot y Gmail Draft solo se ejecutan por la salida *Aceptar* del Switch del Juez o tras aprobación humana.
+
+**Pruebas (18 y 20/10/2026)**
+
+| Prueba | Resultado |
+|---|---|
+| Consulta válida | 202 en 0,39 s · Juez 5/5 · HubSpot actualizado sin duplicar · borrador · Slack · COMPLETADO |
+| Reintento misma clave | 202 · Manager corta en 0,9 s · 0 duplicados |
+| Datos inválidos / sin clave | 400 / 403 |
+| HubSpot caído (simulado) | 3 reintentos → alerta Slack + ERROR_API (sin borrador ni registro parcial) |
+| Falla inesperada (Airtable caído) | Error Handler avisa en ~1 s y registra ERROR_WORKFLOW |
+| Publicar con un Worker inexistente | n8n rechaza la publicación; producción sigue con la versión buena |
+| Precio con manual cargado (20/10) | Juez 5/5 al primer intento con 2 fuentes (§3.1 y §3.4): USD 1.200 setup + USD 290/mes |
+| Descuento "si firmo hoy" (20/10) | El agente no promete: aplica "No sé" y propone llamada · Juez 5/5 |
+| Falla real: OAuth de Gmail vencido (20/10) | Rama de error: alerta Slack con el motivo + ERROR_API, sin reintento automático |
+
+**Hallazgos**
+- *Bug corregido:* con HubSpot caído, el ítem vacío de la búsqueda (*Always Output Data*) seguía por la rama normal y creaba el borrador → se agregó `IF - ¿Falló HubSpot?`.
+- *Vector store vacío tras reiniciar Docker:* todo salía "No sé" (falla segura, sin inventar datos). Con el manual re-ingestado, la misma consulta salió con precio y fuentes.
+- *OAuth de Gmail en modo prueba vence:* en producción, publicar la app de Google para que el token no caduque.
+
+**Cómo probar el webhook**
+```bash
+curl -X POST "$WEBHOOK_URL/webhook/lead-m11" \
+  -H "Content-Type: application/json" -H "X-API-Key: <valor de la credencial 'Webhook M11 - X-API-Key'>" \
+  -d '{"email":"lead@ejemplo.com","nombre":"Lead","empresa":"Agencia","asunto":"Precio","mensaje":"¿Cuánto sale el plan para concesionarias?","idempotency_key":"prueba-001"}'
+```
+Requisitos: los Workers, el RAG, el Juez y el Manager M11 **publicados**; manual re-ingestado si se reinició Docker (vector store en RAM).
 
 ---
 
@@ -553,13 +606,16 @@ Misma base. Una fila por cada evaluación del Juez y otra por cada decisión hum
            + M8_diagrama_supervisor.png + Checkpoint_Modulo8_Violini_Tomas.pdf
 ├── /M9  → checkpoint9_tomas_violini.json (Manager con traceId) + Worker1 + RAG + Worker2 (M8 Arq A) + Juez QA
            (versiones M9) + M9_traceId_flujo.png + PreEntrega_Modulo9_TomasViolini.pdf
-└── /M10 → PreEntrega_Modulo10_TomasViolini.pdf + M10_arquitectura_valor.png (módulo comercial, sin .json)
+├── /M10 → PreEntrega_Modulo10_TomasViolini.pdf + M10_arquitectura_valor.png (módulo comercial, sin .json)
+└── /M11 → checkpoint11_tomas_violini.json (Manager - Proyecto Final M11) + Entrada - Webhook Leads M11
+           + Entrada - Gmail Leads M11 + Error Handler - Alertas M11 + M11_arquitectura.png
+           + Violini_Tomas_ProyectoFinal_AI_Experto.pdf
 ```
 
 ---
 
 ## 🚧 Roadmap
 
-M11 — Proyecto Final Integrador (próximo): defensa del sistema con el brochure del M10. Mismo caso de negocio, mismo repo, extendiendo el workflow.
-Candidatos a implementar a partir del diseño de M7: agente de seguimiento (A5), auditor de CRM (A6), campo
-`senal_critica` en el Router y botones de Slack con *Interactivity* y verificación de firma (M8 usa botones tipo URL).
+M11 ✅ Proyecto Final entregado. Próximos pasos para producción (ver DMSA §4.5): Gemini en plan pago, Idempotencia y QA_Juez
+en Data Tables de n8n (tope de 1.000 llamadas/mes de Airtable free), n8n en VPS con HTTPS y vector store persistente,
+alerta por exceso de "No sé". Fase 3: agente de seguimiento (A5) y auditor de CRM (A6) diseñados en M7.
