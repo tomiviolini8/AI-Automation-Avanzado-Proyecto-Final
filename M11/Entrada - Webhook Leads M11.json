@@ -1,0 +1,301 @@
+{
+  "name": "Entrada - Webhook Leads M11",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-m11",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2e2c63e8-c4fa-4300-a54e-8f89cdfb5bb6",
+      "name": "Webhook - Recibir Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "6dba9f47-5d45-4ad4-bbf8-a96aa7555a17",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9bITTXpHVFY535r4",
+          "name": "Webhook M11 - X-API-Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "800e0433-93ad-4067-b8ad-cb1ad47efc6d",
+              "name": "canal",
+              "value": "webhook",
+              "type": "string"
+            },
+            {
+              "id": "28e20a2a-84bf-45d3-9f17-61b9909bb0f6",
+              "name": "email",
+              "value": "={{ (($json.body && $json.body.email) || '').toLowerCase().trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "f9a4ed04-46df-4fba-ac80-cafaf50ab2a6",
+              "name": "nombre",
+              "value": "={{ ($json.body && $json.body.nombre) || 'Sin nombre' }}",
+              "type": "string"
+            },
+            {
+              "id": "d389fdbb-347c-4aa6-b81b-fb6b3ce72718",
+              "name": "empresa",
+              "value": "={{ ($json.body && $json.body.empresa) || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "1c010060-e2f4-4417-8c95-e9cdc7c26719",
+              "name": "subject",
+              "value": "={{ ($json.body && $json.body.asunto) || '(sin asunto)' }}",
+              "type": "string"
+            },
+            {
+              "id": "1e5ecae5-a30c-4345-b502-046afa38e29c",
+              "name": "bodyText",
+              "value": "={{ (($json.body && $json.body.mensaje) || '').toString().slice(0, 3000) }}",
+              "type": "string"
+            },
+            {
+              "id": "daee0e12-5c06-4eb6-bd30-e5319c7f0df6",
+              "name": "threadId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "caf00852-f487-4bca-86c4-d5595c02d76e",
+              "name": "traceId",
+              "value": "={{ 'trc-' + $now.toFormat('yyyyMMdd-HHmmss') + '-' + Math.random().toString(36).slice(2, 8) }}",
+              "type": "string"
+            },
+            {
+              "id": "b6eaeb91-2587-48c6-aa00-4fa450d8a021",
+              "name": "idempotencyKey",
+              "value": "={{ ($json.body && $json.body.idempotency_key) || $json.headers['idempotency-key'] || ('wh-' + ((($json.body && $json.body.email) || '').toLowerCase().trim() + '|' + (($json.body && $json.body.asunto) || '') + '|' + (($json.body && $json.body.mensaje) || '')).hash('sha256').slice(0, 32)) }}",
+              "type": "string"
+            },
+            {
+              "id": "98c5987b-7384-46eb-86eb-93f87f45b03b",
+              "name": "recibidoEn",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b636c945-344f-4191-933f-c8a0ab04ea07",
+      "name": "Set - Normalizar Webhook",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1732be8-c716-4036-a92f-9df2d9fcf7f7",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "@",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "81bc8b5c-23a5-4389-a605-0f978054cdbe",
+              "leftValue": "={{ $json.bodyText }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "abfa625e-1488-429e-9a08-c71076b0afdb",
+      "name": "IF - ¿Solicitud válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'recibido', mensaje: 'Solicitud recibida. Se procesa en segundo plano.', traceId: $json.traceId, idempotencyKey: $json.idempotencyKey, recibidoEn: $json.recibidoEn }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "3afdcdd7-886f-4e51-b905-18f08a8c28d4",
+      "name": "Respond - 202 Recibido",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        688,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'rechazado', error: 'Faltan email válido o mensaje', traceId: $json.traceId }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "cecebdf2-e398-46f3-ad12-575b2c5c364a",
+      "name": "Respond - 400 Datos inválidos",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        688,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "JehsGdQN62snVmWQ",
+          "mode": "list",
+          "cachedResultName": "Manager - Proyecto Final M11",
+          "cachedResultUrl": "/workflow/JehsGdQN62snVmWQ"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "4f01387e-334b-49a4-a1ac-81610ed2a834",
+      "name": "Execute Manager M11 (sin esperar)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        928,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## M11 — Entrada Webhook (asincrónica)\nPOST `/webhook/lead-m11` con header `X-API-Key` (credencial, nunca en texto).\nBody JSON: `email, nombre, empresa, asunto, mensaje, idempotency_key (opcional)`.\n1) Valida → 2) **responde 202 al instante** con `traceId` → 3) llama al Manager M11 **sin esperar** (procesa en segundo plano).\nReintentos del cliente con el mismo contenido o `idempotency_key` no duplican nada.",
+        "height": 240,
+        "width": 560,
+        "color": 5
+      },
+      "id": "fcfd645f-b9ae-4335-82d9-8e87c6c1d910",
+      "name": "Nota - Entrada asincrónica",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -368
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Recibir Lead": {
+      "main": [
+        [
+          {
+            "node": "Set - Normalizar Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Normalizar Webhook": {
+      "main": [
+        [
+          {
+            "node": "IF - ¿Solicitud válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - ¿Solicitud válida?": {
+      "main": [
+        [
+          {
+            "node": "Respond - 202 Recibido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - 400 Datos inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond - 202 Recibido": {
+      "main": [
+        [
+          {
+            "node": "Execute Manager M11 (sin esperar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "08fYcms9auAgxU3i",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "versionId": "f0abf6a3-cb15-4e97-8ca1-77019585b4db",
+  "meta": {
+    "instanceId": "6176454f87cf7a8894fb913c6e0908458ebc077996cdec55f49f2f2f2ca7579c"
+  },
+  "nodeGroups": [],
+  "id": "ZB9FyDw3E0gn0YFC",
+  "tags": []
+}

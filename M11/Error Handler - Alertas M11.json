@@ -1,0 +1,253 @@
+{
+  "name": "Error Handler - Alertas M11",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "0ecc3e1c-ce23-4c8a-b92d-81e140a668a8",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "77e64a85-6cad-4b4d-8c68-e0099db61691",
+              "name": "texto",
+              "value": "=🔥 *Falla técnica* en _{{ $json.workflow.name }}_\nNodo: {{ $json.execution.lastNodeExecuted || 'desconocido' }}\nError: {{ ($json.execution.error && $json.execution.error.message) || 'sin mensaje' }}\nEjecución #{{ $json.execution.id }} ({{ $json.execution.mode }}). La solicitud quedó registrada para revisión: no se reintenta sola para no duplicar envíos.",
+              "type": "string"
+            },
+            {
+              "id": "a2cc3155-26f0-44f2-bf3b-8f0effcf12e2",
+              "name": "detalle",
+              "value": "={{ ($json.workflow.name || '') + ' | ' + ($json.execution.lastNodeExecuted || '') + ' | ' + (($json.execution.error && $json.execution.error.message) || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "f3b42381-8ae4-4c2e-8fd3-dea27ff710a6",
+              "name": "execId",
+              "value": "={{ String($json.execution.id || $now.toMillis()) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "00bf4dad-403b-4591-94da-064194c2c6e6",
+      "name": "Set - Detalle Falla",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C5GCE8L4A",
+          "mode": "id"
+        },
+        "text": "={{ $json.texto }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "a71223d6-0bed-442e-a8fa-5ce67ce47f9a",
+      "name": "Slack - Alerta Falla Técnica",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        464,
+        -96
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "webhookId": "71db9c64-1a81-4c47-8ad0-e5bb74042ae0",
+      "credentials": {
+        "slackApi": {
+          "id": "nEaju6TfGKiORbpS",
+          "name": "Slack account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appMxRy6AJoqDNuYO",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqqqxFZ13mmxYw2",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "idempotencyKey": "={{ 'error-' + $('Set - Detalle Falla').item.json.execId }}",
+            "canal": "sistema",
+            "estado": "ERROR_WORKFLOW",
+            "detalle": "={{ $('Set - Detalle Falla').item.json.detalle }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "idempotencyKey",
+              "displayName": "idempotencyKey",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "traceId",
+              "displayName": "traceId",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "asunto",
+              "displayName": "asunto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "detalle",
+              "displayName": "detalle",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "014f795a-31f0-4911-ae40-c799d5193cf3",
+      "name": "Airtable - Registrar Falla",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        128
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "EE6FRu7vqNpl8G0U",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set - Detalle Falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Detalle Falla": {
+      "main": [
+        [
+          {
+            "node": "Slack - Alerta Falla Técnica",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Airtable - Registrar Falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4e4ac82a-35d8-447a-8639-27616132cde9",
+  "meta": {
+    "instanceId": "6176454f87cf7a8894fb913c6e0908458ebc077996cdec55f49f2f2f2ca7579c"
+  },
+  "nodeGroups": [],
+  "id": "08fYcms9auAgxU3i",
+  "tags": []
+}

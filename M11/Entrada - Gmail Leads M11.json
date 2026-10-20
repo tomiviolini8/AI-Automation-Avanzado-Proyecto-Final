@@ -1,0 +1,321 @@
+{
+  "name": "Entrada - Gmail Leads M11",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "-category:promotions -category:social"
+        },
+        "options": {}
+      },
+      "id": "07e13158-8e4d-405c-9c36-014c97b27cfb",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "vbT2K4K8AXef3Jul",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5ed3d515-60f5-43b5-8aea-68196fdddf11",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "auto-reply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "0d5956ef-f8b5-4a46-bad0-dcbf7f3dee09",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "automatic reply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "89e4a757-f34b-44ea-86f7-6397478f294a",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "out of office",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "8f0b857f-8a77-41f2-a26f-8239b9282ae0",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "undeliverable",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "d3cf2870-85ab-48ae-8eed-2c89ea37a2a6",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "respuesta automática",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "a2bb68f9-0585-410c-8b1b-4b23e4811fb4",
+              "leftValue": "={{ $json.from.value[0].address }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "b817845c-fcab-42f3-8e1e-ddfa9488abe7",
+              "leftValue": "={{ $json.from.value[0].address }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "9d7504ea-ad43-4ae0-ae6c-8e21f68bd808",
+              "leftValue": "={{ $json.from.value[0].address }}",
+              "rightValue": "mailer-daemon",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "88f21351-58cd-4314-9fdd-24bee9735d3c",
+              "leftValue": "={{ $json.from.value[0].address }}",
+              "rightValue": "tomasvioliniutn10@gmail.com",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "f668cfcf-9cd9-4fbd-bf0e-6d756d7215cd",
+      "name": "IF - ¿Es auto-reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "ab8b57b3-b671-42d2-9d7b-d9aedc2c9644",
+      "name": "Stop - Auto-reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "46c1eecd-ae2f-492b-9bca-209469e18f45",
+              "name": "canal",
+              "value": "gmail",
+              "type": "string"
+            },
+            {
+              "id": "b10a5a3b-b65a-4e54-9f46-b80a366a18f1",
+              "name": "email",
+              "value": "={{ $json.from.value[0].address.toLowerCase() }}",
+              "type": "string"
+            },
+            {
+              "id": "e0409e05-ef7c-4371-8519-8f104e0d2a22",
+              "name": "nombre",
+              "value": "={{ $json.from.value[0].name || 'Sin nombre' }}",
+              "type": "string"
+            },
+            {
+              "id": "e17e8469-057f-48c7-ae8d-472873c7f5d6",
+              "name": "empresa",
+              "value": "={{ $json.from.value[0].address.split('@')[1] }}",
+              "type": "string"
+            },
+            {
+              "id": "127dc822-d312-4f98-b712-e20f2d9d75c9",
+              "name": "subject",
+              "value": "={{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "61f5ab95-3a2e-4558-9ade-83f40d07f03c",
+              "name": "bodyText",
+              "value": "={{ $json.text || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9542d00c-d414-4042-85e4-4f0a7f55b073",
+              "name": "threadId",
+              "value": "={{ $json.threadId }}",
+              "type": "string"
+            },
+            {
+              "id": "67411db6-be55-492e-a84d-8030861a9f39",
+              "name": "traceId",
+              "value": "={{ 'trc-' + $now.toFormat('yyyyMMdd-HHmmss') + '-' + Math.random().toString(36).slice(2, 8) }}",
+              "type": "string"
+            },
+            {
+              "id": "76e526f4-0eb2-4396-9baa-13e853610dab",
+              "name": "idempotencyKey",
+              "value": "={{ 'gmail-' + $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "7b70f30f-e302-4382-9ecf-c6bf25376d0c",
+              "name": "recibidoEn",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5e88e2ef-54a5-4f6b-8c37-11b86eefe81a",
+      "name": "Set - Normalizar Gmail",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "JehsGdQN62snVmWQ",
+          "mode": "list",
+          "cachedResultName": "Manager - Proyecto Final M11",
+          "cachedResultUrl": "/workflow/JehsGdQN62snVmWQ"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "30da0e6f-78e1-425e-9065-9451c8e6efc5",
+      "name": "Execute Manager M11 (sin esperar)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        688,
+        80
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF - ¿Es auto-reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - ¿Es auto-reply?": {
+      "main": [
+        [
+          {
+            "node": "Stop - Auto-reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set - Normalizar Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Normalizar Gmail": {
+      "main": [
+        [
+          {
+            "node": "Execute Manager M11 (sin esperar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "08fYcms9auAgxU3i",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "versionId": "2b00cfac-94a9-4e2e-8d80-737b7fd7e792",
+  "meta": {
+    "instanceId": "6176454f87cf7a8894fb913c6e0908458ebc077996cdec55f49f2f2f2ca7579c"
+  },
+  "nodeGroups": [],
+  "id": "UJSg0whIkywpjR3K",
+  "tags": []
+}
